@@ -1,0 +1,36 @@
+# Constitution for the research agent — defines domain focus.
+# Source: work_plan.md (constitution concept)
+
+name: "Robotics Research"
+
+focus_areas:
+  - "mobile manipulation"
+  - "contact-rich manipulation"
+  - "tactile sensing and feedback"
+  - "learning for manipulation"
+  - "task and motion planning"
+
+key_groups:
+  - "Levine"
+  - "Tedrake"
+  - "Abbeel"
+  - "Finn"
+  - "Kaelbling"
+  - "Rus"
+  - "Fox"
+  - "Todorov"
+  - "Goldberg"
+  - "Bohg"
+  - "Song"
+  - "Pinto"
+  - "Pavone"
+  - "Agrawal"
+  - "Zeng"
+
+domains:
+  - "robotics"
+  - "computer vision for robotics"
+  - "reinforcement learning for robotics"
+  - "planning and control"
+
+max_papers_per_cycle: 50

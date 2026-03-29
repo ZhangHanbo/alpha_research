@@ -1,0 +1,37 @@
+# Review agent configuration.
+# Source: review_plan.md §4.4
+
+target_venue: "RSS"
+
+max_iterations: 5
+meta_review_max_rounds: 2
+stagnation_threshold: 2  # consecutive identical verdicts -> stop
+
+quality_threshold:
+  max_fatal: 0
+  max_serious: 1
+  min_verdict: "weak_accept"
+
+graduated_pressure:
+  iteration_1: "structural_scan"       # Appendix A.1 only
+  iteration_2: "full_review"           # All attack vectors
+  iteration_3_plus: "focused_rereview" # Previous findings only
+
+human_checkpoints:
+  on_backward_to_significance: true    # Always
+  on_low_confidence_significance: true
+  on_low_confidence_formalization: true
+  on_final_accept: true
+  periodic: 3  # Every N iterations if not triggered otherwise
+
+review_quality_thresholds:
+  min_actionability: 0.80
+  min_grounding: 0.90
+  max_vague_critiques: 0
+  min_falsifiability: 0.70
+  min_steel_man_sentences: 3
+
+anti_collapse:
+  monotonic_severity: true       # Findings can't be silently downgraded
+  min_finding_resolution: 0.50   # Research agent must address >= 50%
+  fresh_eyes_final: true         # Last iteration reviews from scratch
