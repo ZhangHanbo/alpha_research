@@ -502,7 +502,7 @@ class TestRunDigest:
             new_callable=AsyncMock,
             return_value=mock_paper,
         ) as mock_fetch:
-            report = asyncio.get_event_loop().run_until_complete(
+            report = asyncio.run(
                 agent.run_digest("grasping in clutter", max_papers=5)
             )
 
@@ -534,7 +534,7 @@ class TestRunDigest:
             new_callable=AsyncMock,
             side_effect=Exception("Download failed"),
         ):
-            report = asyncio.get_event_loop().run_until_complete(
+            report = asyncio.run(
                 agent.run_digest("test query", max_papers=5)
             )
 
@@ -570,7 +570,7 @@ class TestRunDigest:
             new_callable=AsyncMock,
             return_value=mock_paper,
         ):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 agent.run_digest("test", max_papers=5)
             )
 
@@ -602,7 +602,7 @@ class TestRunDeep:
             new_callable=AsyncMock,
             return_value=mock_paper,
         ) as mock_fetch:
-            report = asyncio.get_event_loop().run_until_complete(
+            report = asyncio.run(
                 agent.run_deep("2301.12345")
             )
 
@@ -626,7 +626,7 @@ class TestRunDeep:
             new_callable=AsyncMock,
             return_value=mock_paper,
         ):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 agent.run_deep("2301.54321")
             )
 

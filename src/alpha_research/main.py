@@ -10,6 +10,7 @@ Provides four commands:
 from __future__ import annotations
 
 import asyncio
+import os
 from datetime import datetime
 from pathlib import Path
 
@@ -55,6 +56,15 @@ def _save_report(content: str, prefix: str) -> Path:
     return path
 
 
+def _make_llm(api_key: str | None = None, model: str | None = None):
+    """Create an AnthropicLLM if an API key is available, else return None."""
+    key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+    if not key:
+        return None
+    from alpha_research.llm import AnthropicLLM
+    return AnthropicLLM(api_key=key, model=model or "claude-sonnet-4-20250514")
+
+
 # ---------------------------------------------------------------------------
 # Commands
 # ---------------------------------------------------------------------------
@@ -64,11 +74,14 @@ def research(
     question: str = typer.Argument(..., help="Research question or topic"),
     mode: str = typer.Option("digest", help="Mode: digest|deep|survey|gap|frontier|direction"),
     config_dir: str = typer.Option("config", help="Path to config directory"),
+    api_key: str = typer.Option(None, envvar="ANTHROPIC_API_KEY", help="Anthropic API key"),
+    model: str = typer.Option(None, help="Model to use (default: claude-sonnet-4-20250514)"),
 ) -> None:
     """Run the research agent standalone."""
     constitution = load_constitution(str(Path(config_dir) / "constitution.yaml"))
     store = KnowledgeStore(db_path="data/knowledge.db")
-    agent = ResearchAgent(knowledge_store=store, config=constitution)
+    llm = _make_llm(api_key, model)
+    agent = ResearchAgent(knowledge_store=store, config=constitution, llm=llm)
 
     if mode == "digest":
         try:
@@ -91,13 +104,15 @@ def research(
         typer.echo(f"\nSaved to {path}")
 
     else:
-        typer.echo("Not yet implemented")
+        typer.echo(f"Mode '{mode}' not yet implemented. Available: digest, deep")
 
 
 @app.command("review")
 def review(
     artifact: str = typer.Argument(..., help="Path to markdown artifact file"),
     venue: str = typer.Option("RSS", help="Target venue (e.g. RSS, ICRA, IJRR)"),
+    api_key: str = typer.Option(None, envvar="ANTHROPIC_API_KEY", help="Anthropic API key"),
+    model: str = typer.Option(None, help="Model to use"),
 ) -> None:
     """Run the review agent on an existing artifact file."""
     artifact_path = Path(artifact)
@@ -112,25 +127,27 @@ def review(
         content=content,
     )
 
-    agent = ReviewAgent(venue=venue)
-    try:
-        rev = agent.review(artifact=research_artifact)
-    except NotImplementedError:
-        # The review agent requires an LLM backend; build the prompt instead
-        prompt = agent._build_prompt(research_artifact, iteration=1)
-        output = f"# Review Prompt (LLM backend required)\n\n{prompt}"
+    llm = _make_llm(api_key, model)
+    agent = ReviewAgent(venue=venue, llm=llm)
+
+    if llm is not None:
+        # Use async LLM-backed review
+        try:
+            rev = asyncio.run(agent.areview(artifact=research_artifact))
+        except Exception as exc:
+            typer.echo(f"Error running review: {exc}", err=True)
+            raise typer.Exit(code=1)
+        output = rev.model_dump_json(indent=2)
         typer.echo(output)
         path = _save_report(output, "review")
         typer.echo(f"\nSaved to {path}")
-        return
-    except Exception as exc:
-        typer.echo(f"Error running review: {exc}", err=True)
-        raise typer.Exit(code=1)
-
-    output = rev.model_dump_json(indent=2)
-    typer.echo(output)
-    path = _save_report(output, "review")
-    typer.echo(f"\nSaved to {path}")
+    else:
+        # No LLM — output the prompt for manual use
+        prompt = agent._build_prompt(research_artifact, iteration=1)
+        output = f"# Review Prompt (set ANTHROPIC_API_KEY for LLM review)\n\n{prompt}"
+        typer.echo(output)
+        path = _save_report(output, "review_prompt")
+        typer.echo(f"\nSaved to {path}")
 
 
 @app.command("loop")
@@ -139,15 +156,26 @@ def loop(
     venue: str = typer.Option("RSS", help="Target venue"),
     max_iterations: int = typer.Option(5, help="Maximum loop iterations"),
     config_dir: str = typer.Option("config", help="Path to config directory"),
+    api_key: str = typer.Option(None, envvar="ANTHROPIC_API_KEY", help="Anthropic API key"),
+    model: str = typer.Option(None, help="Model to use"),
 ) -> None:
     """Run the full research-review loop."""
+    llm = _make_llm(api_key, model)
+    if llm is None:
+        typer.echo(
+            "Error: the loop command requires an LLM. "
+            "Set ANTHROPIC_API_KEY or pass --api-key.",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
     constitution = load_constitution(str(Path(config_dir) / "constitution.yaml"))
     review_config = load_review_config(str(Path(config_dir) / "review_config.yaml"))
 
     store = KnowledgeStore(db_path="data/knowledge.db")
-    research_agent = ResearchAgent(knowledge_store=store, config=constitution)
-    review_agent = ReviewAgent(venue=venue)
-    meta_reviewer = MetaReviewer()
+    research_agent = ResearchAgent(knowledge_store=store, config=constitution, llm=llm)
+    review_agent = ReviewAgent(venue=venue, llm=llm)
+    meta_reviewer = MetaReviewer(llm=llm)
 
     bb = Blackboard(
         target_venue=review_config.resolve_venue(),

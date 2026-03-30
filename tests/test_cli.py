@@ -92,7 +92,7 @@ def test_research_deep_mode(tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 
 def test_research_unimplemented_mode(tmp_path, monkeypatch):
-    """research command with unsupported mode should print 'Not yet implemented'."""
+    """research command with unsupported mode should print 'not yet implemented'."""
     monkeypatch.chdir(tmp_path)
 
     with patch("alpha_research.main.KnowledgeStore"), \
@@ -104,7 +104,7 @@ def test_research_unimplemented_mode(tmp_path, monkeypatch):
         result = runner.invoke(app, ["research", "some question", "--mode", "survey"])
 
     assert result.exit_code == 0
-    assert "Not yet implemented" in result.output
+    assert "not yet implemented" in result.output.lower()
 
 
 # ---------------------------------------------------------------------------
@@ -119,8 +119,8 @@ def test_review_command(tmp_path, monkeypatch):
     artifact_file = tmp_path / "artifact.md"
     artifact_file.write_text("# My Research\n\nSome content here.")
 
-    # The ReviewAgent.review() raises NotImplementedError (no LLM),
-    # so the CLI falls back to building a prompt.
+    # Without ANTHROPIC_API_KEY, the CLI falls back to outputting the prompt.
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     result = runner.invoke(app, ["review", str(artifact_file), "--venue", "RSS"])
 
     assert result.exit_code == 0
@@ -185,16 +185,33 @@ def test_output_directory_creation(tmp_path, monkeypatch):
     path = _save_report("test content", "test")
     assert path.exists()
     assert path.read_text() == "test content"
-    assert path.parent == tmp_path / "output" / "reports"
+    # _OUTPUT_DIR is relative, so resolve both sides for comparison
+    assert path.parent.resolve() == (tmp_path / "output" / "reports").resolve()
 
 
 # ---------------------------------------------------------------------------
 # Test: integration — CLI wiring connects correct components
 # ---------------------------------------------------------------------------
 
+def test_loop_command_requires_api_key(tmp_path, monkeypatch):
+    """loop command without API key should exit with error."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+
+    (tmp_path / "config").mkdir()
+    (tmp_path / "config" / "constitution.yaml").write_text("name: test")
+    (tmp_path / "config" / "review_config.yaml").write_text("target_venue: RSS")
+
+    result = runner.invoke(app, ["loop", "mobile manipulation"])
+
+    assert result.exit_code == 1
+    assert "requires an LLM" in result.output or "ANTHROPIC_API_KEY" in result.output
+
+
 def test_loop_command_wiring(tmp_path, monkeypatch):
     """loop command should wire up all agents and call orchestrator.run_loop."""
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-for-wiring")
 
     (tmp_path / "config").mkdir()
     (tmp_path / "config" / "constitution.yaml").write_text("name: test")
@@ -209,9 +226,11 @@ def test_loop_command_wiring(tmp_path, monkeypatch):
          patch("alpha_research.main.ReviewAgent"), \
          patch("alpha_research.main.MetaReviewer"), \
          patch("alpha_research.main.KnowledgeStore"), \
+         patch("alpha_research.main._make_llm") as mock_llm, \
          patch("alpha_research.main.load_constitution") as mock_lc, \
          patch("alpha_research.main.load_review_config") as mock_lr:
 
+        mock_llm.return_value = MagicMock()
         mock_lc.return_value = MagicMock()
         mock_lr_inst = MagicMock()
         mock_lr_inst.resolve_venue.return_value = "RSS"

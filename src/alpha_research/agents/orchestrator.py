@@ -73,6 +73,10 @@ class Orchestrator:
           3. Human checkpoint (conditional)
           4. Convergence check
 
+        Uses the async LLM-backed agent methods (``agenerate``, ``areview``,
+        etc.) when the agents have an LLM client configured, and falls back
+        to the synchronous ``response_text`` variants otherwise.
+
         Parameters
         ----------
         question : str
@@ -90,40 +94,33 @@ class Orchestrator:
             # --- Step 1: Research agent generates/revises ---
             if bb.artifact is None:
                 # First iteration: generate
-                artifact = self.research_agent.generate(
-                    stage="significance",
-                    question=question,
-                )
+                artifact = await self._research_generate(question)
                 bb.artifact = artifact
                 bb.artifact_version = artifact.version
             else:
                 # Subsequent iterations: revise based on current review
                 if bb.current_review is not None:
-                    new_artifact, revision_response = self.research_agent.revise(
-                        artifact=bb.artifact,
-                        review=bb.current_review,
+                    new_artifact, revision_response = await self._research_revise(
+                        bb.artifact, bb.current_review,
                     )
                     bb.artifact = new_artifact
                     bb.artifact_version = new_artifact.version
                     bb.revision_responses.append(revision_response)
 
             # --- Step 2: Review + meta-review ---
-            review = self.review_agent.review(
-                artifact=bb.artifact,
-                iteration=bb.iteration,
-            )
+            review = await self._do_review(bb.artifact, bb.iteration)
 
             # Meta-review quality check (up to MAX_META_REVIEW_ROUNDS rounds)
-            for _ in range(self.MAX_META_REVIEW_ROUNDS):
-                quality_report = self.meta_reviewer.check(
-                    review, review_history=bb.review_history
+            for meta_round in range(self.MAX_META_REVIEW_ROUNDS):
+                quality_report = await self._do_meta_review(
+                    review, bb.review_history,
                 )
                 bb.review_quality = quality_report
                 if quality_report.passes:
                     break
-                # If quality fails, re-review (in production, the review agent
-                # would be prompted again; here we just accept what we get)
-                break
+                # Quality failed — re-review if we have budget
+                if meta_round < self.MAX_META_REVIEW_ROUNDS - 1:
+                    review = await self._do_review(bb.artifact, bb.iteration)
 
             bb.current_review = review
             bb.review_history.append(review)
@@ -151,6 +148,45 @@ class Orchestrator:
 
         bb.update_timestamp()
         return bb
+
+    # ------------------------------------------------------------------
+    # Internal dispatch — async when LLM available, sync fallback
+    # ------------------------------------------------------------------
+
+    async def _research_generate(self, question: str):
+        """Generate an artifact, using LLM if available."""
+        if getattr(self.research_agent, "llm", None) is not None:
+            return await self.research_agent.agenerate(
+                stage="significance", question=question,
+            )
+        return self.research_agent.generate(
+            stage="significance", question=question,
+        )
+
+    async def _research_revise(self, artifact, review):
+        """Revise an artifact, using LLM if available."""
+        if getattr(self.research_agent, "llm", None) is not None:
+            return await self.research_agent.arevise(artifact, review)
+        return self.research_agent.revise(artifact, review)
+
+    async def _do_review(self, artifact, iteration: int) -> Review:
+        """Run review, using LLM if available."""
+        if getattr(self.review_agent, "llm", None) is not None:
+            if iteration >= 3 and self.blackboard.review_history:
+                return await self.review_agent.arereview(
+                    artifact,
+                    self.blackboard.review_history[-1],
+                    iteration,
+                )
+            return await self.review_agent.areview(artifact, iteration)
+        # Sync fallback — will raise NotImplementedError without response_text
+        return self.review_agent.review(artifact=artifact, iteration=iteration)
+
+    async def _do_meta_review(self, review, review_history) -> "ReviewQualityReport":
+        """Run meta-review, using LLM-enhanced check if available."""
+        if getattr(self.meta_reviewer, "llm", None) is not None:
+            return await self.meta_reviewer.acheck(review, review_history)
+        return self.meta_reviewer.check(review, review_history)
 
     def needs_human_checkpoint(self) -> bool:
         """Determine whether a human checkpoint is needed.

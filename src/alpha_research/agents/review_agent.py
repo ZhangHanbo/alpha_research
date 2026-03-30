@@ -22,6 +22,9 @@ from alpha_research.models.research import TaskChain
 from alpha_research.models.review import Finding, Review, Severity, Verdict
 from alpha_research.prompts.review_system import build_review_prompt
 
+# Type alias for LLM callable: async (system, user) -> str
+LLMCallable = Any  # In practice: Callable[[str, str], Awaitable[str]]
+
 
 class ReviewAgent:
     """Adversarial reviewer that produces structured :class:`Review` objects.
@@ -35,8 +38,9 @@ class ReviewAgent:
         Target publication venue (e.g. ``"RSS"``, ``"IJRR"``, ``"ICRA"``).
     """
 
-    def __init__(self, venue: str = "RSS") -> None:
+    def __init__(self, venue: str = "RSS", llm: LLMCallable | None = None) -> None:
         self.venue = venue
+        self.llm = llm
 
     # ------------------------------------------------------------------
     # Public API
@@ -46,22 +50,27 @@ class ReviewAgent:
         self,
         artifact: ResearchArtifact,
         iteration: int = 1,
+        *,
+        response_text: str | None = None,
     ) -> Review:
         """Run the full review workflow on *artifact*.
 
-        This is the main entry-point.  In production the prompt returned
-        by ``_build_prompt`` would be sent to an LLM; here we return the
-        prompt so callers can do so themselves.
-
-        Returns a :class:`Review` built from the LLM response via
-        ``_parse_response``.
+        Parameters
+        ----------
+        artifact : ResearchArtifact
+            The artifact to review.
+        iteration : int
+            Current review iteration (controls graduated pressure).
+        response_text : str | None
+            Pre-computed LLM response for testing.  If ``None`` and no
+            ``self.llm`` is set, raises ``NotImplementedError``.
         """
-        prompt = self._build_prompt(artifact, iteration)
-        # In a real system we'd call the LLM here and parse.
-        # For now, return the prompt for the caller to use.
+        if response_text is not None:
+            return self._parse_response(response_text)
+
         raise NotImplementedError(
-            "review() requires an LLM backend.  "
-            "Use _build_prompt / _parse_response for testing."
+            "review() requires an LLM backend or response_text.  "
+            "Use areview() for async LLM calls, or pass response_text for testing."
         )
 
     def rereview(
@@ -69,21 +78,69 @@ class ReviewAgent:
         artifact: ResearchArtifact,
         previous_review: Review,
         iteration: int,
+        *,
+        response_text: str | None = None,
     ) -> Review:
         """Focused re-review with pairwise comparison against *previous_review*.
 
-        Checks which previous findings have been addressed and produces an
-        updated :class:`Review`.
+        Parameters
+        ----------
+        response_text : str | None
+            Pre-computed LLM response for testing.
         """
-        prompt = self._build_prompt(
-            artifact,
-            iteration,
-            previous_review=previous_review,
-        )
+        if response_text is not None:
+            return self._parse_response(response_text)
+
         raise NotImplementedError(
-            "rereview() requires an LLM backend.  "
-            "Use _build_prompt / _parse_response for testing."
+            "rereview() requires an LLM backend or response_text.  "
+            "Use arereview() for async LLM calls, or pass response_text for testing."
         )
+
+    # ------------------------------------------------------------------
+    # Async LLM-backed variants
+    # ------------------------------------------------------------------
+
+    async def areview(
+        self,
+        artifact: ResearchArtifact,
+        iteration: int = 1,
+    ) -> Review:
+        """Review an artifact using the LLM.
+
+        Requires ``self.llm`` to be set.
+        """
+        if self.llm is None:
+            raise RuntimeError("areview() requires an LLM client (self.llm)")
+        prompt = self._build_prompt(artifact, iteration)
+        user_msg = (
+            f"Review the artifact above (version {artifact.version}, "
+            f"stage {artifact.stage.value if hasattr(artifact.stage, 'value') else artifact.stage}). "
+            f"This is review iteration {iteration}."
+        )
+        response_text = await self.llm(prompt, user_msg)
+        return self._parse_response(response_text)
+
+    async def arereview(
+        self,
+        artifact: ResearchArtifact,
+        previous_review: Review,
+        iteration: int,
+    ) -> Review:
+        """Focused re-review using the LLM.
+
+        Requires ``self.llm`` to be set.
+        """
+        if self.llm is None:
+            raise RuntimeError("arereview() requires an LLM client (self.llm)")
+        prompt = self._build_prompt(
+            artifact, iteration, previous_review=previous_review,
+        )
+        user_msg = (
+            f"Re-review the artifact (version {artifact.version}). "
+            f"Focus on whether previous findings have been addressed."
+        )
+        response_text = await self.llm(prompt, user_msg)
+        return self._parse_response(response_text)
 
     # ------------------------------------------------------------------
     # Verdict computation — pure logic, no LLM

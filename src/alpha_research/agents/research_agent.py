@@ -31,6 +31,9 @@ from alpha_research.models.review import (
 from alpha_research.prompts.research_system import build_research_prompt
 from alpha_research.tools.report import generate_report
 
+# Type alias for LLM callable: async (system, user) -> str
+LLMCallable = Any  # In practice: Callable[[str, str], Awaitable[str]]
+
 
 # ---------------------------------------------------------------------------
 # State machine transitions
@@ -67,9 +70,11 @@ class ResearchAgent:
         self,
         knowledge_store: KnowledgeStore,
         config: ConstitutionConfig | None = None,
+        llm: LLMCallable | None = None,
     ) -> None:
         self.knowledge_store = knowledge_store
         self.config = config or ConstitutionConfig()
+        self.llm = llm
 
     # ------------------------------------------------------------------
     # State machine
@@ -272,6 +277,50 @@ class ResearchAgent:
             stub_revision = RevisionResponse(review_version=review.version)
             return stub_artifact, stub_revision
 
+        new_artifact, revision = self._parse_revision_response(response_text)
+        new_artifact.version = artifact.version + 1
+        return new_artifact, revision
+
+    # ------------------------------------------------------------------
+    # Async LLM-backed variants
+    # ------------------------------------------------------------------
+
+    async def agenerate(
+        self,
+        stage: str,
+        question: str,
+        *,
+        findings: list[dict] | None = None,
+    ) -> ResearchArtifact:
+        """Produce a research artifact using the LLM.
+
+        Requires ``self.llm`` to be set. Builds the prompt, calls the LLM,
+        and parses the response into a :class:`ResearchArtifact`.
+        """
+        if self.llm is None:
+            raise RuntimeError("agenerate() requires an LLM client (self.llm)")
+        prompt = self._build_prompt(stage, question, findings=findings)
+        user_msg = f"Produce a {stage} artifact for the research question above."
+        response_text = await self.llm(prompt, user_msg)
+        return self._parse_response(response_text)
+
+    async def arevise(
+        self,
+        artifact: ResearchArtifact,
+        review: Review,
+    ) -> tuple[ResearchArtifact, RevisionResponse]:
+        """Revise an artifact using the LLM.
+
+        Requires ``self.llm`` to be set.
+        """
+        if self.llm is None:
+            raise RuntimeError("arevise() requires an LLM client (self.llm)")
+        prompt = self._build_revision_prompt(artifact, review)
+        user_msg = (
+            "Revise the artifact to address ALL findings from the review. "
+            "Produce both a ResearchArtifact and a RevisionResponse."
+        )
+        response_text = await self.llm(prompt, user_msg)
         new_artifact, revision = self._parse_revision_response(response_text)
         new_artifact.version = artifact.version + 1
         return new_artifact, revision
