@@ -1,0 +1,33 @@
+# Python caches and virtual environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Local environment and editor/tool state
+.env
+.env.*
+!.env.example
+.claude/
+.DS_Store
+
+# Local runtime data
+*.db
+*.sqlite3
+
+# Frontend dependencies and build output
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/coverage/
+frontend/.turbo/
+frontend/.vercel/
+frontend/.eslintcache
+frontend/*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*

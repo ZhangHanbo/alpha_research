@@ -414,3 +414,43 @@ class KnowledgeStore:
             return [dict(r) for r in rows]
         finally:
             conn.close()
+
+    # ------------------------------------------------------------------
+    # Feedback
+    # ------------------------------------------------------------------
+
+    def save_feedback(
+        self,
+        cycle_id: str,
+        paper_id: str,
+        source: str,
+        content: str,
+    ) -> int:
+        """Save human feedback.
+
+        Parameters
+        ----------
+        cycle_id : str
+            Cycle the feedback relates to (can be empty).
+        paper_id : str
+            Paper or evaluation identifier.
+        source : str
+            Who/what generated the feedback (e.g. ``"human_api"``).
+        content : str
+            Free-form or JSON content.
+
+        Returns
+        -------
+        int
+            The database row id of the new feedback record.
+        """
+        conn = self._connect()
+        try:
+            cur = conn.execute(
+                "INSERT INTO feedback (cycle_id, paper_id, source, content) VALUES (?, ?, ?, ?)",
+                (cycle_id, paper_id, source, content),
+            )
+            conn.commit()
+            return cur.lastrowid  # type: ignore[return-value]
+        finally:
+            conn.close()
