@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from alpha_research.knowledge.store import KnowledgeStore
+from alpha_research.projects.orchestrator import ProjectOrchestrator
 
 # ---------------------------------------------------------------------------
 # Shared store singleton
@@ -22,6 +23,27 @@ def get_store() -> KnowledgeStore:
     if _store is None:
         _store = KnowledgeStore(db_path="data/knowledge.db")
     return _store
+
+
+# ---------------------------------------------------------------------------
+# Shared orchestrator singleton
+# ---------------------------------------------------------------------------
+
+_orchestrator: ProjectOrchestrator | None = None
+
+
+def get_orchestrator() -> ProjectOrchestrator:
+    """Return the shared ProjectOrchestrator instance (created lazily)."""
+    global _orchestrator
+    if _orchestrator is None:
+        _orchestrator = ProjectOrchestrator(base_dir="data/projects")
+    return _orchestrator
+
+
+def set_orchestrator(orch: ProjectOrchestrator) -> None:
+    """Override the orchestrator (used by tests)."""
+    global _orchestrator
+    _orchestrator = orch
 
 
 # ---------------------------------------------------------------------------
@@ -65,11 +87,13 @@ from alpha_research.api.routers.agent import router as agent_router  # noqa: E40
 from alpha_research.api.routers.evaluations import router as evaluations_router  # noqa: E402
 from alpha_research.api.routers.graph import router as graph_router  # noqa: E402
 from alpha_research.api.routers.papers import router as papers_router  # noqa: E402
+from alpha_research.api.routers.projects import router as projects_router  # noqa: E402
 
 app.include_router(papers_router)
 app.include_router(evaluations_router)
 app.include_router(graph_router)
 app.include_router(agent_router)
+app.include_router(projects_router)
 
 
 @app.get("/api/health")

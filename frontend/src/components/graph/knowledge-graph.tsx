@@ -113,7 +113,7 @@ export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
   );
 
   // Stylesheet for cytoscape
-  const stylesheet: cytoscape.StylesheetCSS[] = useMemo(
+  const stylesheet = useMemo<cytoscape.StylesheetStyle[]>(
     () => [
       {
         selector: 'node',

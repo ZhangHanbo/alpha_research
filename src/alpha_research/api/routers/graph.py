@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from alpha_research.api.models import GraphEdge, GraphNode
 
@@ -15,10 +15,21 @@ def _get_store():
     return get_store()
 
 
+def _resolve_store(project_id: str | None):
+    """Return the project-scoped or global store."""
+    if project_id:
+        from alpha_research.api.app import get_orchestrator
+        orch = get_orchestrator()
+        return orch.service.get_knowledge_store(project_id)
+    return _get_store()
+
+
 @router.get("/nodes", response_model=list[GraphNode])
-def list_graph_nodes():
+def list_graph_nodes(
+    project_id: str | None = Query(None, description="Scope to a project's knowledge store"),
+):
     """Return papers as graph nodes."""
-    store = _get_store()
+    store = _resolve_store(project_id)
     papers = store.query_papers(limit=500)
 
     nodes: list[GraphNode] = []
@@ -37,9 +48,11 @@ def list_graph_nodes():
 
 
 @router.get("/edges", response_model=list[GraphEdge])
-def list_graph_edges():
+def list_graph_edges(
+    project_id: str | None = Query(None, description="Scope to a project's knowledge store"),
+):
     """Return paper_relations as graph edges."""
-    store = _get_store()
+    store = _resolve_store(project_id)
     conn = store._connect()
     try:
         rows = conn.execute(

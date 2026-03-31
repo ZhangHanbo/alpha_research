@@ -37,6 +37,17 @@ from alpha_research.models.blackboard import (
     ResearchArtifact,
     Venue,
 )
+from alpha_research.models.project import (
+    ProjectManifest,
+    ProjectState,
+    SourceBinding,
+)
+from alpha_research.models.snapshot import (
+    ProjectSnapshot,
+    ResearchRun,
+    SourceSnapshot,
+    UnderstandingSnapshot,
+)
 
 __all__ = [
     # research
@@ -52,4 +63,8 @@ __all__ = [
     # blackboard
     "Blackboard", "ResearchArtifact", "ConvergenceState",
     "HumanDecision", "Venue",
+    # project lifecycle
+    "ProjectManifest", "ProjectState", "SourceBinding",
+    "ProjectSnapshot", "SourceSnapshot", "UnderstandingSnapshot",
+    "ResearchRun",
 ]

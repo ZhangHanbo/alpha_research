@@ -114,3 +114,34 @@ class AgentEvent(BaseModel):
 
     type: str
     data: dict[str, Any] = Field(default_factory=dict)
+
+
+# ---------------------------------------------------------------------------
+# Project lifecycle
+# ---------------------------------------------------------------------------
+
+class CreateProjectRequest(BaseModel):
+    """Body for POST /api/projects."""
+
+    name: str
+    project_type: str = "literature"
+    primary_question: str = ""
+    source_path: str | None = None
+    description: str = ""
+    domain: str = ""
+    tags: list[str] = Field(default_factory=list)
+
+
+class CreateSnapshotRequest(BaseModel):
+    """Body for POST /api/projects/{project_id}/snapshots."""
+
+    note: str = ""
+    milestone: bool = False
+    milestone_name: str | None = None
+
+
+class ResumeProjectRequest(BaseModel):
+    """Body for POST /api/projects/{project_id}/resume."""
+
+    mode: str = "current_workspace"
+    snapshot_id: str | None = None

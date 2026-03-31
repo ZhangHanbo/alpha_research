@@ -117,3 +117,47 @@ export type Venue =
   | "IROS";
 
 export type ResearchMode = "digest" | "deep" | "survey" | "gap" | "frontier" | "direction";
+
+// Project lifecycle types
+export interface ProjectManifest {
+  project_id: string;
+  slug: string;
+  name: string;
+  description: string;
+  project_type: 'literature' | 'codebase' | 'hybrid';
+  status: 'draft' | 'active' | 'paused' | 'completed' | 'archived';
+  primary_question: string;
+  domain: string;
+  tags: string[];
+  created_at: string;
+}
+
+export interface ProjectState {
+  project_id: string;
+  current_status: string;
+  current_snapshot_id: string | null;
+  resume_required: boolean;
+  source_changed_since_last_snapshot: boolean;
+  last_completed_run_id: string | null;
+  last_resumed_at: string | null;
+}
+
+export interface ProjectSnapshot {
+  snapshot_id: string;
+  project_id: string;
+  snapshot_kind: string;
+  created_at: string;
+  summary: string;
+  note: string;
+}
+
+export interface ProjectRun {
+  run_id: string;
+  project_id: string;
+  run_type: string;
+  status: string;
+  started_at: string;
+  finished_at: string | null;
+  summary: string;
+  error: string;
+}

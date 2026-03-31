@@ -1,27 +1,27 @@
 """LLM client abstraction for the multi-agent system.
 
-Provides a thin wrapper around the Anthropic Messages API so that:
-  - All agents share the same calling convention
-  - Tests can inject a mock/stub without touching agent code
-  - Structured JSON output is requested via prefill
+Two ways to create an LLM client:
 
-Usage::
+1. **llmutils config** (preferred) — uses the ``llmutils`` package for
+   multi-provider support::
 
-    client = AnthropicLLM()                        # production
-    client = AnthropicLLM(model="claude-sonnet-4-20250514")  # cheaper model
-    response_text = await client.generate(system_prompt, user_message)
+       from alpha_research.llm import make_llm
+       llm = make_llm("config/llm.yaml")
+       llm = make_llm("config/llm.yaml", model="deepseek-chat")
 
-For testing::
+2. **Direct Anthropic** (legacy fallback) — if ``llmutils`` is not
+   installed or no config file exists::
 
-    async def fake_generate(system, user):
-        return '{"stage": "significance", ...}'
+       from alpha_research.llm import AnthropicLLM
+       llm = AnthropicLLM(api_key="sk-ant-...")
 
-    agent = ResearchAgent(..., llm=fake_generate)
+Both satisfy the ``LLMCallable`` protocol: ``async (system, user) -> str``.
 """
 
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Protocol
 
 import anthropic
@@ -35,6 +35,42 @@ class LLMCallable(Protocol):
     """Any async callable (system, user) -> str."""
 
     async def __call__(self, system: str, user: str) -> str: ...
+
+
+# ---------------------------------------------------------------------------
+# Factory using llmutils (preferred)
+# ---------------------------------------------------------------------------
+
+def make_llm(
+    config: str | Path | None = None,
+    model: str | None = None,
+) -> LLMCallable:
+    """Create an LLM client, preferring llmutils if available.
+
+    Parameters
+    ----------
+    config : str | Path | None
+        Path to an ``llmutils`` YAML config file.  If None, tries
+        ``config/llm.yaml``, then falls back to ``AnthropicLLM``.
+    model : str | None
+        Model name override.
+
+    Returns
+    -------
+    LLMCallable
+        An async callable ``(system, user) -> str``.
+    """
+    # Try llmutils first
+    cfg_path = Path(config) if config else Path("config/llm.yaml")
+    if cfg_path.exists():
+        try:
+            from llmutils import LLM
+            return LLM(cfg_path, model=model)
+        except ImportError:
+            pass  # llmutils not installed, fall through
+
+    # Fallback to direct Anthropic
+    return AnthropicLLM(model=model or DEFAULT_MODEL)
 
 
 # ---------------------------------------------------------------------------

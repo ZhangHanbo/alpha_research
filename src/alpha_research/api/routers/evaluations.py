@@ -38,17 +38,27 @@ def _eval_to_response(ev) -> EvaluationResponse:
     )
 
 
+def _resolve_store(project_id: str | None):
+    """Return the project-scoped or global store."""
+    if project_id:
+        from alpha_research.api.app import get_orchestrator
+        orch = get_orchestrator()
+        return orch.service.get_knowledge_store(project_id)
+    return _get_store()
+
+
 @router.get("", response_model=list[EvaluationResponse])
 def list_evaluations(
     cycle_id: str | None = Query(None),
     mode: str | None = Query(None),
     min_score: float | None = Query(None, description="Minimum average rubric score"),
+    project_id: str | None = Query(None, description="Scope to a project's knowledge store"),
 ):
     """List evaluations with optional filters."""
     import json
     import sqlite3
 
-    store = _get_store()
+    store = _resolve_store(project_id)
     conn = store._connect()
     try:
         clauses: list[str] = []

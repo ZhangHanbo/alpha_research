@@ -1,6 +1,11 @@
 # Python caches and virtual environments
 __pycache__/
 *.py[cod]
+*.egg-info/
+*.egg
+dist/
+build/
+*.whl
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
@@ -13,12 +18,26 @@ venv/
 !.env.example
 .claude/
 .DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
 
-# Local runtime data
-*.db
-*.sqlite3
+# ── Project data (store to cloud, not git) ────────────
+# Downloaded papers
+data/papers/
+# SQLite knowledge stores
+data/*.db
+# Project state, snapshots, runs, caches
+data/projects/
+# Blackboard state
+data/blackboard.json
+# Reports / output
+output/
 
-# Frontend dependencies and build output
+# ── Frontend ──────────────────────────────────────────
 frontend/node_modules/
 frontend/.next/
 frontend/out/
@@ -31,3 +50,6 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+
+# ── Config with real keys ─────────────────────────────
+config/llm.yaml

@@ -1,4 +1,13 @@
-import type { Paper, Evaluation, GraphNode, GraphEdge } from "./types";
+import type {
+  Paper,
+  Evaluation,
+  GraphNode,
+  GraphEdge,
+  ProjectManifest,
+  ProjectState,
+  ProjectSnapshot,
+  ProjectRun,
+} from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
@@ -89,4 +98,45 @@ export async function getAgentStatus(): Promise<{
 
 export function getStreamUrl(): string {
   return `${API_BASE}/api/agent/stream`;
+}
+
+// Projects
+export async function getProjects(): Promise<ProjectManifest[]> {
+  return apiFetch('/api/projects');
+}
+
+export async function getProject(id: string): Promise<{ manifest: ProjectManifest; state: ProjectState }> {
+  return apiFetch(`/api/projects/${encodeURIComponent(id)}`);
+}
+
+export async function createProject(params: {
+  name: string;
+  project_type: string;
+  primary_question: string;
+  source_path?: string;
+  description?: string;
+}): Promise<ProjectManifest> {
+  return apiFetch('/api/projects', { method: 'POST', body: JSON.stringify(params) });
+}
+
+export async function getProjectSnapshots(id: string): Promise<ProjectSnapshot[]> {
+  return apiFetch(`/api/projects/${encodeURIComponent(id)}/snapshots`);
+}
+
+export async function getProjectRuns(id: string): Promise<ProjectRun[]> {
+  return apiFetch(`/api/projects/${encodeURIComponent(id)}/runs`);
+}
+
+export async function resumeProject(id: string, mode: string = 'current_workspace'): Promise<ProjectState> {
+  return apiFetch(`/api/projects/${encodeURIComponent(id)}/resume`, {
+    method: 'POST',
+    body: JSON.stringify({ mode }),
+  });
+}
+
+export async function createManualSnapshot(id: string, note: string = ''): Promise<ProjectSnapshot> {
+  return apiFetch(`/api/projects/${encodeURIComponent(id)}/snapshots`, {
+    method: 'POST',
+    body: JSON.stringify({ note }),
+  });
 }

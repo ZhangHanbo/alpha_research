@@ -63,15 +63,25 @@ def _eval_to_response(ev) -> EvaluationResponse:
 # endpoints
 # ------------------------------------------------------------------
 
+def _resolve_store(project_id: str | None):
+    """Return the project-scoped or global store."""
+    if project_id:
+        from alpha_research.api.app import get_orchestrator
+        orch = get_orchestrator()
+        return orch.service.get_knowledge_store(project_id)
+    return _get_store()
+
+
 @router.get("", response_model=list[PaperResponse])
 def list_papers(
     topic: str | None = Query(None, description="LIKE search on title/abstract"),
     year_min: int | None = Query(None, description="Minimum year (inclusive)"),
     year_max: int | None = Query(None, description="Maximum year (inclusive)"),
     limit: int = Query(50, ge=1, le=500),
+    project_id: str | None = Query(None, description="Scope to a project's knowledge store"),
 ):
     """List papers with optional filters."""
-    store = _get_store()
+    store = _resolve_store(project_id)
     date_range = None
     if year_min is not None or year_max is not None:
         date_range = (str(year_min or 1900), str(year_max or 2100))
@@ -80,9 +90,12 @@ def list_papers(
 
 
 @router.get("/{paper_id}", response_model=PaperResponse)
-def get_paper(paper_id: str):
+def get_paper(
+    paper_id: str,
+    project_id: str | None = Query(None, description="Scope to a project's knowledge store"),
+):
     """Retrieve a single paper by arxiv_id, s2_id, doi, or row id."""
-    store = _get_store()
+    store = _resolve_store(project_id)
     paper = store.get_paper(paper_id)
     if paper is None:
         raise HTTPException(status_code=404, detail="Paper not found")
@@ -90,9 +103,12 @@ def get_paper(paper_id: str):
 
 
 @router.get("/{paper_id}/evaluations", response_model=list[EvaluationResponse])
-def get_paper_evaluations(paper_id: str):
+def get_paper_evaluations(
+    paper_id: str,
+    project_id: str | None = Query(None, description="Scope to a project's knowledge store"),
+):
     """All evaluations for a paper."""
-    store = _get_store()
+    store = _resolve_store(project_id)
     # Verify paper exists
     paper = store.get_paper(paper_id)
     if paper is None:
