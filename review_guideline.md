@@ -1,3 +1,180 @@
+# My Version
+
+# Meta Review Procedure for Conference Paper Review
+
+## Overview
+This document describes a structured, reproducible procedure for generating comprehensive, technically grounded reviews of conference papers (targeting top-tier venues such as ACM MM, CVPR, ICCV, ECCV, NeurIPS). It is designed for use by human reviewers or AI review agents.
+
+---
+
+## Phase 1: Deep Paper Reading and Comprehension
+
+### Step 1.1: First Pass — Structure and Claims
+- Read the **title, abstract, introduction, and conclusion** to identify:
+  - The core problem being addressed.
+  - The proposed solution and its claimed novelty.
+  - The key contributions (usually enumerated in the introduction).
+- Record the **paper type**: novel method, benchmark, empirical study, theoretical contribution, or survey.
+
+### Step 1.2: Second Pass — Technical Details
+- Read the **method section** carefully:
+  - Formalize the problem setup: inputs, outputs, assumptions.
+  - Understand each proposed module/component and its justification.
+  - Trace the mathematical formulations for correctness and consistency.
+  - Identify whether each component is truly novel or a known technique applied to a new setting.
+- Read the **experiment section**:
+  - Identify datasets, metrics, baselines, and ablations.
+  - Check whether experimental design matches the paper's claims.
+  - Note any missing comparisons, unclear setups, or potential confounds.
+
+### Step 1.3: Third Pass — Critical Analysis
+- Re-read the **related work** for completeness and fairness.
+- Examine **figures and tables** for clarity and whether they support the narrative.
+- Look for **internal inconsistencies** (e.g., claims in the intro not supported by experiments).
+
+### Step 1.4: Write a Detailed Summary
+- Write a 150-300 word summary **in your own words** covering:
+  - What problem is addressed and why it matters.
+  - What solution is proposed and how it works.
+  - What experiments were conducted and what was found.
+- This demonstrates careful reading and helps structure the review.
+
+---
+
+## Phase 2: Comprehensive Literature Survey
+
+### Step 2.1: Catalog All Citations
+- Extract every citation from the paper's reference list.
+- Classify each as: foundational (>5 years, seminal), methodological (directly related techniques), or contextual (datasets, metrics, applications).
+
+### Step 2.2: First-Hierarchy Citation Analysis
+- For each **methodological** citation, understand:
+  - What it contributes and how the paper under review relates to or differs from it.
+  - Whether the paper's characterization of prior work is accurate and fair.
+
+### Step 2.3: Second-Hierarchy Exploration
+- For each key methodological citation, search for:
+  - Papers that cite it (forward citations) — are there newer methods the paper misses?
+  - Papers cited by it (backward citations) — are there foundational methods omitted?
+- Search specifically for work in these categories:
+  1. **Direct competitors**: Papers solving the same or very similar problem.
+  2. **Methodological relatives**: Papers using similar techniques (e.g., same type of KD, same adapter design) but in different domains.
+  3. **Concurrent/recent work**: Papers from the last 12-18 months that may have been published after the paper was drafted.
+
+### Step 2.4: Identify Missing References
+- For each missing reference found, assess:
+  - **Relevance**: Does it directly affect the paper's claims or positioning?
+  - **Impact**: Is it from a top venue or widely cited?
+  - **Recency**: Is it concurrent work (which is more forgivable to miss)?
+- Prioritize: distinguish between "must-cite" (weakens the paper if absent) vs. "nice-to-cite" (supplementary context).
+
+---
+
+## Phase 3: Understand Review Standards
+
+### Step 3.1: Venue-Specific Guidelines
+- Read the official reviewer guidelines for the target venue.
+- Note venue-specific evaluation criteria (e.g., ACM MM requires multimedia relevance; CVPR emphasizes not rejecting solely for not beating SOTA).
+
+### Step 3.2: Internalize Quality Criteria
+Evaluate along these standard dimensions:
+1. **Novelty/Originality**: What is genuinely new? Is the combination of known techniques justified?
+2. **Technical Soundness**: Are the formulations correct? Are experiments well-designed? Are conclusions supported by evidence?
+3. **Significance/Impact**: Does this matter for the field? Is the problem important?
+4. **Clarity/Presentation**: Is the paper well-written, well-organized, with clear figures?
+5. **Reproducibility**: Are implementation details sufficient? Is code/data promised?
+6. **Ethical considerations**: Any concerns about data use, societal impact, or dual use?
+
+### Step 3.3: Calibrate Expectations
+- A strong review is **specific and actionable**. Every criticism must cite a concrete issue (equation, table, figure, paragraph) and suggest how to fix it.
+- Avoid generic complaints ("limited novelty") without explaining *what* specifically is not novel and *what prior work* already does it.
+- Distinguish between **fatal flaws** (fundamental issues that cannot be addressed in revision) and **addressable weaknesses** (issues that can be fixed with more experiments or better writing).
+
+---
+
+## Phase 4: Write the Review
+
+### Step 4.1: Review Structure
+Use the following structure (aligned with ACM MM / CVPR conventions):
+
+```
+## Summary
+[150-300 words summarizing the paper in your own words]
+
+## Strengths
+[Bulleted list, each with 2-4 sentence explanation]
+
+## Weaknesses
+[Bulleted list, each with detailed technical explanation, 
+ citing specific sections/equations/tables, and referencing 
+ relevant prior work where applicable]
+
+## Questions for Authors
+[Specific technical questions that would help clarify 
+ concerns during rebuttal]
+
+## Missing References
+[List of important missing citations with brief justification]
+
+## Minor Issues
+[Typos, formatting, notation inconsistencies]
+
+## Overall Assessment
+[2-3 sentences summarizing the overall recommendation]
+
+## Confidence
+[State your confidence level in the review]
+```
+
+### Step 4.2: Writing Principles
+1. **Be specific**: "Equation 6 assumes uniform weighting but Section 3.4 discusses architecture-specific weighting — this is contradictory" is better than "the method is unclear."
+2. **Be constructive**: Every weakness should ideally include a suggestion for how to address it.
+3. **Be fair**: Acknowledge genuine contributions even in a negative review. Do not dismiss the entire paper because of one weakness.
+4. **Be evidence-based**: Back up claims with citations, specific numbers from tables, or references to equations.
+5. **Separate major from minor**: Clearly distinguish fundamental concerns from polish issues.
+6. **Avoid tone problems**: Use third person ("the paper", "the authors"), not second person ("you"). Do not be condescending.
+
+### Step 4.3: Quality Checklist Before Submission
+- [ ] Does every weakness cite a specific location in the paper?
+- [ ] Is every "missing citation" claim backed by a specific paper reference?
+- [ ] Are strengths and weaknesses balanced (not all positive or all negative)?
+- [ ] Are suggestions actionable (can the authors actually follow them)?
+- [ ] Is the summary accurate (demonstrates reading the paper)?
+- [ ] Is the review free of generic/boilerplate language?
+- [ ] Would you find this review helpful if you were the author?
+
+---
+
+## Phase 5: Final Calibration
+
+### Step 5.1: Re-read and Revise
+- Re-read the review for tone, accuracy, and completeness.
+- Ensure the overall recommendation is consistent with the strengths/weaknesses listed.
+- Check that the review is neither too generous (missing real problems) nor too harsh (dismissing valid contributions).
+
+### Step 5.2: Score Assignment (if required)
+Use the venue's rating scale. Common ACM MM / CVPR scale:
+- **Strong Accept**: Clear accept; significant contribution with minor issues.
+- **Accept**: Good paper; strengths outweigh weaknesses.
+- **Borderline Accept**: Interesting but with notable concerns; could go either way.
+- **Borderline Reject**: Below threshold; significant weaknesses but some merit.
+- **Reject**: Fundamental flaws or insufficient contribution.
+- **Strong Reject**: Clearly below acceptance threshold.
+
+---
+
+## Appendix: Common Pitfalls to Avoid
+
+| Pitfall | Why It's Bad | What to Do Instead |
+|---------|-------------|-------------------|
+| "Limited novelty" without specifics | Uninformative; authors cannot respond | Name the prior work that already does this and explain the overlap |
+| Demanding comparison with unpublished arXiv | Unreasonable for authors | Mark as "FYI" suggestion, not a requirement |
+| Rejecting for not beating SOTA | Explicitly against most venue guidelines | Evaluate novelty, insight, and potential impact separately |
+| Overly short review (<200 words) | Suggests reviewer did not read carefully | Aim for 500-1000 words minimum |
+| Requesting major new experiments in rebuttal | Unreasonable given rebuttal constraints | Focus on clarifications and analyses of existing data |
+| Confusing "I don't understand" with "this is wrong" | May reflect reviewer gap, not paper flaw | Ask a clarifying question instead |
+
+
 # Adversarial Review Guidelines for Robotics Research
 
 A guide for reviewing robotics research at the standard of top venues — RSS, CoRL, IJRR, T-RO, RA-L, ICRA — not at the standard of average reviewing. Designed to drive an adversarial review agent that finds every structural weakness a top reviewer would find, while remaining constructive enough to improve the work.
