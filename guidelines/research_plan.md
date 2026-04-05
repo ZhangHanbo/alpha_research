@@ -1,5 +1,18 @@
 # Auto-Research Agent — Work Plan
 
+> **Status 2026-04-05** — Architecture revised. The initial T1-T10 implementation (494 tests passing) built the research and review agents from scratch as Python classes backed by tool modules. The project has since adopted a **skills-first architecture** that depends on [`alpha_review`](../../alpha_review) and expresses domain knowledge as Claude Code `SKILL.md` files rather than Python prompt code. For the current architecture see [`tools_and_skills.md`](tools_and_skills.md); for the refactor plan from T1-T10 to the new layout see [`refactor_plan.md`](refactor_plan.md) and [`TASKS.md`](TASKS.md) (now R0-R9).
+>
+> **What in this document is still authoritative:**
+> - The two-layer state machine (outer stages SIGNIFICANCE → FORMALIZE → DIAGNOSE → CHALLENGE → APPROACH → VALIDATE, backward triggers t2-t15, forward guards g1-g5) — still describes the research methodology.
+> - SM-1 through SM-6 component specifications (Search & Discovery, Paper Processing, Evaluation, Knowledge Store, Report Generation, Agent Orchestration) — still valid as architectural specs of each component's inner state machine.
+> - Data model descriptions.
+>
+> **What is superseded:**
+> - "Implementation Plan" / "Phase 1-4 build order" sections — replaced by `refactor_plan.md` phases R0-R9.
+> - Project structure and file layout — replaced by the target layout in `refactor_plan.md` Part II.
+> - Knowledge store schema (SQLite tables) — replaced by `alpha_review.ReviewState` (papers/themes) plus JSONL files (evaluations, findings, reviews, frontier snapshots). See `refactor_plan.md` Part I.2.
+> - "Tools" as a first-class concept — the refactor is zero-new-tools; all capabilities are reached via Claude Code built-ins (`Bash`, `Read`, `Write`, etc.) + `alpha_review` Python module.
+
 ## The Top-Research Loop — A Two-Layer State Machine
 
 The research process is a **two-layer state machine**. The outer layer controls stage transitions — including backward transitions triggered by specific discoveries that invalidate earlier conclusions. The inner layer is a search process within each stage — iterating over candidate sub-states until one satisfies the forward transition guard. Most of the time in research is spent in the inner layer. The critical skill is recognizing when a backward transition is needed rather than continuing to search within a stage that was built on a flawed premise.

@@ -19,6 +19,11 @@ dependencies = [
     "fastapi>=0.100",
     "uvicorn[standard]>=0.20",
     "sse-starlette>=1.6",
+    "sympy>=1.12",  # R1: sympy_verify.py helper
+    "scipy>=1.11",  # R1: audit_stats.py helper
+    # alpha_review is installed separately as an editable dependency:
+    #   pip install -e ../alpha_review
+    # See guidelines/refactor_plan.md Part 0 for setup.
 ]
 
 [project.optional-dependencies]

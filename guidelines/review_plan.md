@@ -1,6 +1,5 @@
 # Review Agent — Implementation Plan
-
-Companion to `review_guideline.md` (what the agent enforces) and `work_plan.md` (the research agent it critiques). This document specifies: (1) executable, quantifiable metrics for every review item; (2) optimal agent architecture; (3) the iterative research–review interaction protocol.
+This document specifies: (1) executable, quantifiable metrics for every review item; (2) optimal agent architecture; (3) the iterative research–review interaction protocol.
 
 ---
 
