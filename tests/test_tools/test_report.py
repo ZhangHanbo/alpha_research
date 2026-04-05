@@ -161,64 +161,14 @@ class TestDeepMode:
         assert "No rubric scores available" in report
 
 
-class TestSurveyMode:
-    def test_basic_survey(self):
-        evals = [_make_eval(title="Paper A"), _make_eval(title="Paper B")]
-        report = generate_report(
-            evals,
-            mode="survey",
-            title="Manipulation Survey",
-            scope="2022-2024, cs.RO",
-        )
+class TestSurveyModeRemoved:
+    """The ``survey`` mode was removed in the R3 refactor — alpha_review's
+    ``run_write`` pipeline produces LaTeX surveys with BibTeX and PDF, which
+    supersedes our hand-written markdown survey template."""
 
-        assert "# Landscape Survey: Manipulation Survey" in report
-        assert "Papers analyzed:** 2" in report
-        assert "2022-2024, cs.RO" in report
-
-    def test_survey_has_all_sections(self):
-        report = generate_report([_make_eval()], mode="survey", title="Test")
-
-        assert "## Significance Screening" in report
-        assert "## Problem Formalization Landscape" in report
-        assert "## Approach Taxonomy" in report
-        assert "## Capability Frontier" in report
-        assert "## Key Groups and Directions" in report
-        assert "## Identified Gaps" in report
-        assert "## Trend Analysis" in report
-        assert "## Proposed Research Directions" in report
-
-    def test_survey_human_checkpoints(self):
-        report = generate_report([_make_eval()], mode="survey")
-        assert "HUMAN CHECKPOINT" in report
-
-    def test_survey_with_extra_context(self):
-        report = generate_report(
-            [_make_eval()],
-            mode="survey",
-            title="Test",
-            gaps=["No work on deformable objects", "Limited real-robot validation"],
-            trends=["Shift from RL to imitation learning"],
-        )
-        assert "deformable objects" in report
-        assert "imitation learning" in report
-
-    def test_survey_approach_groups(self):
-        groups = {
-            "Reinforcement Learning": [
-                {"title": "RL Paper", "year": 2023, "venue": "RSS"},
-            ],
-            "Imitation Learning": [
-                {"title": "IL Paper", "year": 2022, "venue": "CoRL"},
-            ],
-        }
-        report = generate_report(
-            [_make_eval()],
-            mode="survey",
-            approach_groups=groups,
-        )
-        assert "Reinforcement Learning" in report
-        assert "RL Paper" in report
-        assert "Imitation Learning" in report
+    def test_survey_mode_raises_with_helpful_message(self):
+        with pytest.raises(ValueError, match="removed in the R3 refactor"):
+            generate_report([_make_eval()], mode="survey")
 
 
 class TestInvalidMode:
