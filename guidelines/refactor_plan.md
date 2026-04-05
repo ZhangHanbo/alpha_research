@@ -22,6 +22,20 @@ Sanity check of the existing `alpha_research` codebase against the new skills-fi
 
 ---
 
+## Part 0.5. R2 Execution Note (2026-04-05)
+
+R2 was executed and removed 1,990 lines cleanly (`tools/arxiv_search.py`, `tools/semantic_scholar.py`, `tools/knowledge.py`, `test_store.py`, `test_arxiv_search.py`, `test_semantic_scholar.py`, `test_research_agent.py`). However, three items in R2's original scope were **deferred into R6** because their consumers span KEEP files that require their own refactors:
+
+1. **`knowledge/store.py` + `knowledge/schema.py` deletion** — `KnowledgeStore` is imported by `main.py`, `api/app.py`, `api/routers/agent.py`, `projects/service.py`, plus `agents/research_agent.py`. R6 will delete `agents/`; the rest migrate off `KnowledgeStore` as part of R6/R7 (main.py + api/ + projects/ refactor off the SQLite-backed evaluation store onto `alpha_review.ReviewState` + JSONL via `alpha_research.records.jsonl`).
+
+2. **`models.research.Paper` + `PaperMetadata` + `PaperStatus` + `ExtractionQuality` removal** — The naive "import from `alpha_review.models`" shim does not work because `alpha_review.models.Paper` has an incompatible schema (no `full_text`, no `sections`, no `extraction_quality` field, different id format). The consumer that legitimately needs the richer model is `tools/paper_fetch.py` (KEEP file, cannot be deleted). Decision: **move `Paper`, `PaperMetadata`, `PaperStatus`, `ExtractionQuality` into `tools/paper_fetch.py` as locally-scoped dataclasses during R6**, since that's the only place that produces them. Everything else that consumed them (`agents/`, `knowledge/store.py`) is being deleted.
+
+3. **`test_models.py` Paper tests** — stay while the classes stay, drop alongside the class relocation in R6.
+
+Net R2 outcome: 1,990 lines deleted, 115 tests removed, 0 regressions. R6 now carries ~300 extra lines of scope.
+
+---
+
 ## Part I. Per-File Audit
 
 The existing codebase is 10,171 source lines across 55 Python files. This section decides the fate of every file.
