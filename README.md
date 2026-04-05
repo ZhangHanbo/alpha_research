@@ -1,16 +1,33 @@
 # Alpha Research
 
-A multi-agent system for automated research paper discovery, evaluation, and
-adversarial review in robotics.
+A **skills-first** research system for robotics paper discovery, evaluation,
+and adversarial review.
 
-Three LLM-powered agents collaborate through a shared blackboard: a
-**Research Agent** that searches and evaluates papers, a **Review Agent**
-that adversarially critiques research artifacts calibrated to specific
-venues (RSS, IJRR, CoRL, etc.), and a **Meta-Reviewer** that
-quality-checks reviews against quantitative thresholds. An
-**Orchestrator** drives the loop until convergence. A **web dashboard**
-provides real-time monitoring with an evaluation table, activity
-timeline, and knowledge graph.
+**Architecture (post-R6 refactor, 2026-04-05):**
+
+- **Skills** (`.claude/skills/*/SKILL.md`, currently staged in `skills/`) encode
+  research- and review-guideline knowledge as Claude Code Agent Skills. 11
+  skills cover paper evaluation (Appendix B rubric), significance screening
+  (Hamming/Consequence/Durability/Compounding tests), formalization checking,
+  empirical diagnosis, challenge articulation, experiment auditing,
+  adversarial review at top-venue standard, concurrent work detection,
+  gap analysis, and capability-frontier classification.
+- **Python pipelines** (`src/alpha_research/pipelines/`) provide deterministic
+  orchestration: literature-survey (wraps `alpha-review` CLI + paper-evaluate
+  loop + synthesis), method-survey, frontier-mapping, and a
+  research-review convergence loop.
+- **alpha_review** (dependency at `../alpha_review`) provides all scholarly
+  API clients (ArXiv, Semantic Scholar, OpenAlex, Google Scholar, Unpaywall),
+  a SQLite-backed paper store, and the literature-survey-pipeline CLI
+  `alpha-review`.
+- **Claude Code skill invocation** drives all judgment-heavy work. Pipelines
+  call skills via `claude -p`, which progressive-loads each skill when its
+  description matches.
+
+See `guidelines/tools_and_skills.md` for the architecture, `guidelines/refactor_plan.md`
+for the migration history from the earlier agent-centric design, and
+`guidelines/research_guideline.md` + `guidelines/review_guideline.md` for
+the domain standards the skills encode.
 
 
 ## Quick Start
@@ -41,15 +58,32 @@ generation — it just skips LLM-based evaluation and review.
 
 ### 3. Run a research task (CLI)
 
-```bash
-# Search ArXiv and produce a digest of recent papers on a topic
-alpha-research research "tactile manipulation for deformable objects" --mode digest
+The CLI surface (post-R6/R7 refactor):
 
-# Fetch and analyze a single paper by ArXiv ID
-alpha-research research "2401.12345" --mode deep
+```bash
+# Full literature survey — wraps alpha-review CLI + paper-evaluate rubric loop
+alpha-research survey "tactile manipulation for deformable objects" -o output/tactile
+
+# Single-paper Appendix B rubric evaluation
+alpha-research evaluate arxiv:2501.12345 -o output/single
+
+# Adversarial review at top-venue standard
+alpha-research review path/to/paper.md --venue RSS -o output/reviews
+
+# Screen a candidate problem for significance (Hamming/Consequence/Durability/Compounding)
+alpha-research significance "contact-rich manipulation under uncertainty"
+
+# Run the full adversarial research-review convergence loop on a project
+alpha-research loop output/tactile --venue RSS --max-iterations 5
+
+# Summarize a project's JSONL records
+alpha-research status output/tactile
 ```
 
-Output prints to stdout and saves to `output/reports/`.
+Output is persisted as JSONL records (`evaluation.jsonl`, `review.jsonl`,
+`finding.jsonl`, `frontier.jsonl`, etc.) under the project directory. The
+`survey` command also produces a LaTeX survey + compiled PDF via
+`alpha-review`'s `run_write` pipeline.
 
 ### 4. Launch the web dashboard to monitor tasks
 
@@ -81,10 +115,10 @@ Open **http://localhost:3000**. The dashboard shows three views:
 To start a run from the dashboard, type a research question in the top
 bar, choose a mode and venue, and click **Run**.
 
-### 5. Run the full adversarial research-review loop (requires API key)
+### 5. Run the full adversarial research-review loop (requires Claude CLI)
 
 ```bash
-alpha-research loop "contact-rich manipulation under uncertainty" --venue RSS
+alpha-research loop output/my_project --venue RSS --max-iterations 5
 ```
 
 The orchestrator will prompt for human input at checkpoints. The
@@ -94,10 +128,14 @@ blackboard saves to `data/blackboard.json`.
 ## CLI Reference
 
 ```
-alpha-research research <question> [--mode digest|deep|survey] [--api-key KEY] [--model MODEL]
-alpha-research review <artifact.md> [--venue RSS|IJRR|...] [--api-key KEY]
-alpha-research loop <question> [--venue RSS] [--max-iterations 5] [--api-key KEY]
-alpha-research status
+alpha-research survey       <query> -o <dir>                    # literature_survey pipeline
+alpha-research evaluate     <paper_id> -o <dir>                 # paper-evaluate skill
+alpha-research review       <artifact.md> --venue RSS -o <dir>  # adversarial-review skill
+alpha-research significance <problem>                           # significance-screen skill
+alpha-research loop         <project_dir> --venue RSS           # research_review_loop pipeline
+alpha-research status       [<project_dir>]                     # summarize JSONL records
+
+alpha-research project create|list|show|status|snapshot|resume  # project lifecycle
 ```
 
 **Venues** (strictest to most lenient): IJRR, T-RO, RSS, CoRL, RA-L, ICRA, IROS.
@@ -107,96 +145,115 @@ alpha-research status
 
 ```
 alpha_research/
-├── config/
-│   ├── constitution.yaml          # Research agent domain focus
-│   └── review_config.yaml         # Review thresholds, pressure schedule
+├── .claude/skills/                # ACTIVE Claude Code skills (populated from skills/)
+├── skills/                        # STAGING — 11 SKILL.md files pending review
+│   ├── paper-evaluate/            #   Canonical rubric scoring (Sonnet)
+│   ├── significance-screen/       #   Hamming/Consequence/Durability tests (Opus)
+│   ├── formalization-check/       #   Math detection + sympy verify (Opus)
+│   ├── diagnose-system/           #   Failure taxonomy + formal mapping (Sonnet)
+│   ├── challenge-articulate/      #   Structural barrier ID (Opus)
+│   ├── experiment-audit/          #   Stats + baselines + overclaiming (Sonnet)
+│   ├── adversarial-review/        #   Full 6-attack-vector review (Opus, largest)
+│   ├── concurrent-work-check/     #   Scoop detection (Sonnet)
+│   ├── gap-analysis/              #   Semantic clustering (Opus)
+│   ├── classify-capability/       #   Frontier tier assignment (Sonnet)
+│   └── identify-method-gaps/      #   Method-class coverage gaps (Sonnet)
+│
+├── config/                        # YAML configs (constitution, review)
+├── guidelines/                    # Doctrinal + plan documents
+│   ├── research_guideline.md      #   Standards the skills encode
+│   ├── review_guideline.md        #   Adversarial review standards
+│   ├── research_plan.md           #   State machine + SM-1..SM-6 specs
+│   ├── review_plan.md             #   Executable metrics
+│   ├── tools_and_skills.md        #   Current architecture
+│   ├── refactor_plan.md           #   R0-R9 migration plan
+│   └── TASKS.md                   #   Task breakdown
+│
+├── scripts/                       # Helper CLIs called by skills
+│   ├── sympy_verify.py            #   Mathematical property verification
+│   └── audit_stats.py             #   Statistical audit
 │
 ├── src/alpha_research/
-│   ├── models/                    # Pydantic V2 data models
-│   │   ├── research.py            #   Paper, Evaluation, TaskChain, ...
-│   │   ├── review.py              #   Finding, Review, Verdict, ...
-│   │   ├── blackboard.py          #   Blackboard, ResearchArtifact, Venue
-│   │   ├── project.py             #   ProjectManifest, ProjectState, SourceBinding
-│   │   └── snapshot.py            #   SourceSnapshot, ProjectSnapshot, ResearchRun
-│   │
-│   ├── knowledge/                 # SQLite persistent storage
-│   │   ├── schema.py              #   8-table schema
-│   │   └── store.py               #   KnowledgeStore CRUD
-│   │
-│   ├── tools/                     # Shared agent toolset
-│   │   ├── arxiv_search.py        #   ArXiv search
-│   │   ├── paper_fetch.py         #   PDF download + text extraction
-│   │   ├── semantic_scholar.py    #   S2 API: metadata, citations
-│   │   ├── knowledge.py           #   Agent-facing store interface
-│   │   └── report.py              #   Jinja2 report generation
-│   │
-│   ├── prompts/                   # System prompt builders
-│   │   ├── research_system.py     #   Research agent prompt
-│   │   ├── review_system.py       #   Review agent prompt
-│   │   ├── meta_review_system.py  #   Meta-reviewer prompt
-│   │   ├── understanding_system.py#   Understanding agent prompt
-│   │   └── rubric.py              #   Shared rubric text
-│   │
-│   ├── agents/                    # Agent implementations
-│   │   ├── research_agent.py      #   Generate/revise artifacts
-│   │   ├── review_agent.py        #   Three-pass review, verdict
-│   │   ├── meta_reviewer.py       #   Review quality checks
-│   │   └── orchestrator.py        #   Research-review loop
-│   │
-│   ├── projects/                  # Project lifecycle layer
-│   │   ├── understanding.py       #   Understanding agent
-│   │   └── ...                    #   Registry, git state, snapshots, resume
-│   │
-│   ├── metrics/                   # Pure-Python metrics
+│   ├── pipelines/                 # Deterministic Python orchestration
+│   │   ├── state_machine.py       #   Pure functions: g1-g5, t2-t15
+│   │   ├── literature_survey.py   #   alpha-review CLI + paper-evaluate loop
+│   │   ├── method_survey.py       #   Search + graph + evaluate loop
+│   │   ├── frontier_mapping.py    #   classify-capability loop + diff
+│   │   └── research_review_loop.py#   Adversarial convergence loop
+│   ├── records/
+│   │   └── jsonl.py               #   append/read/count JSONL records
+│   ├── metrics/
+│   │   ├── verdict.py             #   Pure compute_verdict (per review_plan §1.9)
 │   │   ├── review_quality.py      #   Actionability, grounding, anti-patterns
 │   │   ├── convergence.py         #   Convergence, stagnation detection
 │   │   └── finding_tracker.py     #   Cross-iteration finding tracking
-│   │
-│   ├── api/                       # FastAPI backend
-│   │   ├── app.py                 #   CORS, routers, startup
-│   │   ├── models.py              #   API response models
+│   ├── reports/
+│   │   └── templates.py           #   DIGEST + DEEP rubric templates (Jinja2)
+│   ├── models/                    # Pydantic data models
+│   │   ├── research.py            #   Evaluation, TaskChain, RubricScore, ...
+│   │   ├── review.py              #   Finding, Review, Verdict, ...
+│   │   ├── blackboard.py          #   Blackboard, ResearchArtifact, Venue
+│   │   ├── project.py             #   ProjectManifest, ProjectState
+│   │   └── snapshot.py            #   SourceSnapshot, ProjectSnapshot
+│   ├── tools/
+│   │   └── paper_fetch.py         #   PDF download + pymupdf extraction
+│   ├── projects/                  # Project lifecycle layer (KEEP)
+│   │   ├── orchestrator.py        #   Project-level orchestration
+│   │   ├── registry.py, resume.py, snapshots.py, ...
+│   │   └── understanding.py       #   Project understanding (uses claude_call)
+│   ├── api/                       # FastAPI backend (KEEP)
+│   │   ├── app.py, models.py
 │   │   └── routers/               #   papers, evaluations, graph, agent
-│   │
 │   ├── config.py                  # YAML config loaders
 │   ├── llm.py                     # Anthropic API client wrapper
-│   └── main.py                    # Typer CLI entry point
+│   └── main.py                    # Typer CLI
 │
 ├── frontend/                      # Next.js 15 web dashboard
-│   └── src/
-│       ├── app/page.tsx           #   3-panel dashboard
-│       ├── components/
-│       │   ├── evaluation/        #   TanStack Table with rubric scores
-│       │   ├── activity/          #   SSE-powered activity timeline
-│       │   ├── graph/             #   Cytoscape.js knowledge graph
-│       │   └── layout/            #   Dashboard shell
-│       ├── hooks/                 #   Zustand store, SSE, REST hooks
-│       └── lib/                   #   API client, TypeScript types
-│
-└── tests/                         # 472 tests
+└── tests/                         # 277 unit + 3 integration (opt-in)
 ```
+
+**Note:** `src/alpha_research/agents/` and `src/alpha_research/prompts/` were
+removed in Phase R6 of the refactor. Their logic migrated to `pipelines/`
+(Python orchestration) and `skills/` (domain-knowledge markdown recipes).
+`knowledge/store.py` is DEFERRED — it's still consumed by `main.py` web-UI
+paths and `projects/service.py`; its removal is scheduled for a follow-up
+refactor once those callers migrate to `records.jsonl` + `alpha_review.ReviewState`.
 
 ### Architecture
 
 ```
-Frontend (Next.js)                     Backend (FastAPI)
-┌────────────────────┐                ┌────────────────────────┐
-│ Evaluation Table   │──── REST ────▶│ /api/papers            │
-│ Knowledge Graph    │──── REST ────▶│ /api/graph             │
-│ Activity Timeline  │──── SSE ─────▶│ /api/agent/stream      │
-│ Run Controls       │──── POST ────▶│ /api/agent/run         │
-└────────────────────┘                └──────────┬─────────────┘
-                                                 │
-                                      ┌──────────▼─────────────┐
-                                      │ Orchestrator           │
-                                      │  ├── Research Agent    │
-                                      │  ├── Review Agent      │
-                                      │  └── Meta-Reviewer     │
-                                      └──────────┬─────────────┘
-                                                 │
-                                      ┌──────────▼─────────────┐
-                                      │ Knowledge Store        │
-                                      │ (SQLite)               │
-                                      └────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│  Claude Code                                                        │
+│    reads .claude/skills/*/SKILL.md when description matches         │
+│    invokes tools: Bash, Read, Write, Edit, Grep, Glob, Task, ...    │
+└──────────────────────────┬──────────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  alpha_research                                                     │
+│                                                                     │
+│   Skills (markdown)          Pipelines (Python)                     │
+│   ├─ paper-evaluate          ├─ literature_survey  ─┐               │
+│   ├─ significance-screen     ├─ method_survey       │               │
+│   ├─ formalization-check     ├─ frontier_mapping    │ call skills   │
+│   ├─ adversarial-review  ◀───┤  research_review_loop│ via claude -p │
+│   └─ ... (8 more)            └─ state_machine (pure)                │
+│                                                                     │
+│   Helpers                   Records                                 │
+│   ├─ metrics/verdict.py     └─ JSONL project memory                 │
+│   ├─ scripts/sympy_verify      (evaluation/finding/review/          │
+│   └─ scripts/audit_stats         frontier/...)                      │
+└──────────────────────────┬──────────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  alpha_review (editable dependency at ../alpha_review)              │
+│    apis.search_all, s2_*, openalex_search, unpaywall_pdf_url, ...  │
+│    scholar.scholar_search_papers                                    │
+│    models.ReviewState (SQLite-backed papers/themes store)           │
+│    sdk.run_plan/scope/search/read/write (the survey pipeline)       │
+│    alpha-review CLI (entry point used by literature_survey pipe)    │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
 

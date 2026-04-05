@@ -42,3 +42,10 @@ packages = ["src/alpha_research"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+# Integration tests are OPT-IN (they hit real CLIs / APIs and take minutes).
+# Run them with:  pytest -m integration
+# Run everything: pytest -m ""
+addopts = "-m 'not integration'"
+markers = [
+    "integration: end-to-end tests that hit real CLIs / APIs (opt-in)",
+]
