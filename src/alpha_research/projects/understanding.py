@@ -14,7 +14,7 @@ from typing import Any
 
 from alpha_research.models.project import ProjectManifest
 from alpha_research.models.snapshot import SourceSnapshot, UnderstandingSnapshot
-from alpha_research.prompts.understanding_system import build_understanding_prompt
+from alpha_research.projects._understanding_prompt import build_understanding_prompt
 
 # Type alias for LLM callable: async (system, user) -> str
 LLMCallable = Any

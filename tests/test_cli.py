@@ -1,248 +1,233 @@
-"""Tests for the alpha_research CLI (main.py)."""
+"""Tests for the post-R6/R7 alpha-research CLI.
+
+The old agent-centric CLI (``research``/``review``/``loop``) has been replaced
+by skill-invoking and pipeline-driven commands:
+
+    survey | evaluate | review | significance | loop | status
+
+These tests verify the command surface, argument parsing, and output-directory
+handling. End-to-end tests that actually hit Claude or alpha_review live in
+``tests/test_integration/`` (Phase R8) and are marked ``@pytest.mark.integration``.
+"""
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from typer.testing import CliRunner
 
 from alpha_research.main import app
 
+
 runner = CliRunner()
 
 
 # ---------------------------------------------------------------------------
-# Test: CLI app has all expected commands
+# Basic command surface
 # ---------------------------------------------------------------------------
 
 def test_cli_has_all_commands():
-    """The Typer app should register research, review, loop, and status."""
-    command_names = {cmd.name for cmd in app.registered_commands}
-    assert "research" in command_names
-    assert "review" in command_names
-    assert "loop" in command_names
-    assert "status" in command_names
+    """The CLI should expose the six post-refactor commands + project subtree."""
+    result = runner.invoke(app, ["--help"])
+    assert result.exit_code == 0
+    for cmd in ("survey", "evaluate", "review", "significance", "loop", "status", "project"):
+        assert cmd in result.output, f"missing command: {cmd}"
+
+
+def test_project_subtree_exists():
+    """The project-lifecycle subtree should still work after the refactor."""
+    result = runner.invoke(app, ["project", "--help"])
+    assert result.exit_code == 0
+    for sub in ("create", "list", "show", "status", "snapshot", "resume"):
+        assert sub in result.output
 
 
 # ---------------------------------------------------------------------------
-# Test: research command (digest mode)
+# survey command
 # ---------------------------------------------------------------------------
 
-def test_research_digest_mode(tmp_path, monkeypatch):
-    """research command in digest mode should call run_digest and produce output."""
+def test_survey_command_calls_pipeline(tmp_path, monkeypatch):
+    """survey should delegate to run_literature_survey with the query."""
     monkeypatch.chdir(tmp_path)
 
-    mock_report = "# Digest Report\n\nSome findings here."
+    from alpha_research.pipelines.literature_survey import LiteratureSurveyResult
 
-    with patch("alpha_research.main.KnowledgeStore") as MockStore, \
-         patch("alpha_research.main.ResearchAgent") as MockAgent, \
-         patch("alpha_research.main.load_constitution") as mock_load:
-        mock_load.return_value = MagicMock()
-        agent_instance = MockAgent.return_value
-        agent_instance.run_digest = AsyncMock(return_value=mock_report)
-
-        # Create config dir so load_constitution path resolves
-        (tmp_path / "config").mkdir()
-        (tmp_path / "config" / "constitution.yaml").write_text("name: test")
-
-        result = runner.invoke(app, ["research", "mobile manipulation", "--mode", "digest"])
+    fake_result = LiteratureSurveyResult(
+        output_dir=tmp_path / "output" / "test_topic",
+        papers_total=5,
+        papers_included=3,
+        evaluations_written=3,
+    )
+    with patch(
+        "alpha_research.pipelines.literature_survey.run_literature_survey",
+        new=AsyncMock(return_value=fake_result),
+    ):
+        result = runner.invoke(app, ["survey", "test topic", "-o", str(tmp_path / "out")])
 
     assert result.exit_code == 0
-    assert "Digest Report" in result.output
-    assert "Saved to" in result.output
-    # Check output file was created
-    output_dir = tmp_path / "output" / "reports"
-    assert output_dir.exists()
-    report_files = list(output_dir.glob("digest_*.md"))
-    assert len(report_files) == 1
-    assert "Digest Report" in report_files[0].read_text()
+    assert "Survey complete" in result.output
+    assert "3" in result.output  # papers_included
 
 
-# ---------------------------------------------------------------------------
-# Test: research command (deep mode)
-# ---------------------------------------------------------------------------
-
-def test_research_deep_mode(tmp_path, monkeypatch):
-    """research command in deep mode should call run_deep and produce output."""
+def test_survey_command_sanitizes_default_output_dir(tmp_path, monkeypatch):
+    """Default output dir is derived from the query slug."""
     monkeypatch.chdir(tmp_path)
 
-    mock_report = "# Deep Analysis\n\nDetailed paper analysis."
+    from alpha_research.pipelines.literature_survey import LiteratureSurveyResult
 
-    with patch("alpha_research.main.KnowledgeStore") as MockStore, \
-         patch("alpha_research.main.ResearchAgent") as MockAgent, \
-         patch("alpha_research.main.load_constitution") as mock_load:
-        mock_load.return_value = MagicMock()
-        agent_instance = MockAgent.return_value
-        agent_instance.run_deep = AsyncMock(return_value=mock_report)
-
-        (tmp_path / "config").mkdir()
-        (tmp_path / "config" / "constitution.yaml").write_text("name: test")
-
-        result = runner.invoke(app, ["research", "2401.12345", "--mode", "deep"])
+    fake_result = LiteratureSurveyResult(output_dir=tmp_path / "output" / "some_query")
+    mock_run = AsyncMock(return_value=fake_result)
+    with patch(
+        "alpha_research.pipelines.literature_survey.run_literature_survey",
+        new=mock_run,
+    ):
+        result = runner.invoke(app, ["survey", "Some Query!"])
 
     assert result.exit_code == 0
-    assert "Deep Analysis" in result.output
+    call_kwargs = mock_run.call_args.kwargs
+    assert call_kwargs["query"] == "Some Query!"
+    assert "output" in str(call_kwargs["output_dir"])
 
 
-# ---------------------------------------------------------------------------
-# Test: research command (unimplemented mode)
-# ---------------------------------------------------------------------------
-
-def test_research_unimplemented_mode(tmp_path, monkeypatch):
-    """research command with unsupported mode should print 'not yet implemented'."""
+def test_survey_command_propagates_errors(tmp_path, monkeypatch):
+    """Pipeline exceptions bubble up as typer.Exit(1)."""
     monkeypatch.chdir(tmp_path)
 
-    with patch("alpha_research.main.KnowledgeStore"), \
-         patch("alpha_research.main.ResearchAgent"), \
-         patch("alpha_research.main.load_constitution"):
-        (tmp_path / "config").mkdir()
-        (tmp_path / "config" / "constitution.yaml").write_text("name: test")
-
-        result = runner.invoke(app, ["research", "some question", "--mode", "survey"])
-
-    assert result.exit_code == 0
-    assert "not yet implemented" in result.output.lower()
-
-
-# ---------------------------------------------------------------------------
-# Test: review command with mocked agent
-# ---------------------------------------------------------------------------
-
-def test_review_command(tmp_path, monkeypatch):
-    """review command should read artifact file and invoke ReviewAgent."""
-    monkeypatch.chdir(tmp_path)
-
-    # Create a temp artifact file
-    artifact_file = tmp_path / "artifact.md"
-    artifact_file.write_text("# My Research\n\nSome content here.")
-
-    # Without ANTHROPIC_API_KEY, the CLI falls back to outputting the prompt.
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    result = runner.invoke(app, ["review", str(artifact_file), "--venue", "RSS"])
-
-    assert result.exit_code == 0
-    assert "Review Prompt" in result.output or "Saved to" in result.output
-
-
-def test_review_command_missing_file(tmp_path, monkeypatch):
-    """review command with a missing file should exit with error."""
-    monkeypatch.chdir(tmp_path)
-
-    result = runner.invoke(app, ["review", "nonexistent.md"])
+    with patch(
+        "alpha_research.pipelines.literature_survey.run_literature_survey",
+        new=AsyncMock(side_effect=RuntimeError("boom")),
+    ):
+        result = runner.invoke(app, ["survey", "q", "-o", str(tmp_path / "out")])
 
     assert result.exit_code == 1
-    assert "not found" in result.output
+    assert "boom" in result.output
 
 
 # ---------------------------------------------------------------------------
-# Test: status command — no active loop
+# evaluate / review / significance commands (skill invocations)
 # ---------------------------------------------------------------------------
 
-def test_status_no_active_loop(tmp_path, monkeypatch):
-    """status command when no blackboard exists should print 'No active loop'."""
+def test_evaluate_command_requires_claude_cli(tmp_path, monkeypatch):
+    """When `claude` CLI is missing, evaluate should report a friendly error."""
     monkeypatch.chdir(tmp_path)
 
-    result = runner.invoke(app, ["status"])
-
-    assert result.exit_code == 0
-    assert "No active loop" in result.output
-
-
-# ---------------------------------------------------------------------------
-# Test: status command — with existing blackboard
-# ---------------------------------------------------------------------------
-
-def test_status_with_blackboard(tmp_path, monkeypatch):
-    """status command should print summary from an existing blackboard."""
-    monkeypatch.chdir(tmp_path)
-
-    from alpha_research.models.blackboard import Blackboard
-
-    bb = Blackboard(iteration=3, max_iterations=5)
-    bb_path = tmp_path / "data" / "blackboard.json"
-    bb.save(bb_path)
-
-    result = runner.invoke(app, ["status"])
-
-    assert result.exit_code == 0
-    assert "Iteration: 3" in result.output
-    assert "Converged: False" in result.output
-
-
-# ---------------------------------------------------------------------------
-# Test: output directory creation
-# ---------------------------------------------------------------------------
-
-def test_output_directory_creation(tmp_path, monkeypatch):
-    """_save_report should create the output/reports directory if missing."""
-    monkeypatch.chdir(tmp_path)
-
-    from alpha_research.main import _save_report
-
-    path = _save_report("test content", "test")
-    assert path.exists()
-    assert path.read_text() == "test content"
-    # _OUTPUT_DIR is relative, so resolve both sides for comparison
-    assert path.parent.resolve() == (tmp_path / "output" / "reports").resolve()
-
-
-# ---------------------------------------------------------------------------
-# Test: integration — CLI wiring connects correct components
-# ---------------------------------------------------------------------------
-
-def test_loop_command_requires_api_key(tmp_path, monkeypatch):
-    """loop command without API key should exit with error."""
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-
-    (tmp_path / "config").mkdir()
-    (tmp_path / "config" / "constitution.yaml").write_text("name: test")
-    (tmp_path / "config" / "review_config.yaml").write_text("target_venue: RSS")
-
-    result = runner.invoke(app, ["loop", "mobile manipulation"])
+    fake_invoker = AsyncMock(side_effect=FileNotFoundError("no claude"))
+    with patch("alpha_research.main._default_skill_invoker", return_value=fake_invoker):
+        result = runner.invoke(app, ["evaluate", "arxiv:2501.12345", "-o", str(tmp_path / "ev")])
 
     assert result.exit_code == 1
-    assert "requires an LLM" in result.output or "ANTHROPIC_API_KEY" in result.output
+    assert "claude" in result.output.lower()
 
 
-def test_loop_command_wiring(tmp_path, monkeypatch):
-    """loop command should wire up all agents and call orchestrator.run_loop."""
+def test_evaluate_command_happy_path(tmp_path, monkeypatch):
+    """evaluate should invoke the paper-evaluate skill and echo the result."""
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-for-wiring")
 
-    (tmp_path / "config").mkdir()
-    (tmp_path / "config" / "constitution.yaml").write_text("name: test")
-    (tmp_path / "config" / "review_config.yaml").write_text("target_venue: RSS")
-
-    from alpha_research.models.blackboard import Blackboard
-
-    mock_bb = Blackboard(iteration=2, max_iterations=5)
-
-    with patch("alpha_research.main.Orchestrator") as MockOrch, \
-         patch("alpha_research.main.ResearchAgent"), \
-         patch("alpha_research.main.ReviewAgent"), \
-         patch("alpha_research.main.MetaReviewer"), \
-         patch("alpha_research.main.KnowledgeStore"), \
-         patch("alpha_research.main._make_llm") as mock_llm, \
-         patch("alpha_research.main.load_constitution") as mock_lc, \
-         patch("alpha_research.main.load_review_config") as mock_lr:
-
-        mock_llm.return_value = MagicMock()
-        mock_lc.return_value = MagicMock()
-        mock_lr_inst = MagicMock()
-        mock_lr_inst.resolve_venue.return_value = "RSS"
-        mock_lr.return_value = mock_lr_inst
-
-        orch_instance = MockOrch.return_value
-        orch_instance.run_loop = AsyncMock(return_value=mock_bb)
-
-        result = runner.invoke(app, ["loop", "mobile manipulation"])
+    fake_invoker = AsyncMock(return_value={"rubric_scores": {"B.1": 4}, "task_chain": {}})
+    with patch("alpha_research.main._default_skill_invoker", return_value=fake_invoker):
+        result = runner.invoke(app, ["evaluate", "arxiv:2501.12345", "-o", str(tmp_path / "ev")])
 
     assert result.exit_code == 0
-    orch_instance.run_loop.assert_called_once()
-    # Verify blackboard was saved
-    bb_path = tmp_path / "data" / "blackboard.json"
-    assert bb_path.exists()
+    fake_invoker.assert_called_once()
+    call_args = fake_invoker.call_args
+    assert call_args.args[0] == "paper-evaluate"
+    assert call_args.args[1]["paper_id"] == "arxiv:2501.12345"
+
+
+def test_review_command_happy_path(tmp_path, monkeypatch):
+    """review should invoke the adversarial-review skill."""
+    monkeypatch.chdir(tmp_path)
+
+    fake_invoker = AsyncMock(return_value={"verdict": "weak_reject", "findings": []})
+    with patch("alpha_research.main._default_skill_invoker", return_value=fake_invoker):
+        result = runner.invoke(app, ["review", "artifact.md", "--venue", "RSS", "-o", str(tmp_path / "rv")])
+
+    assert result.exit_code == 0
+    assert fake_invoker.call_args.args[0] == "adversarial-review"
+    assert fake_invoker.call_args.args[1]["venue"] == "RSS"
+    assert fake_invoker.call_args.args[1]["iteration"] == 2  # default
+
+
+def test_significance_command_happy_path(tmp_path, monkeypatch):
+    """significance should invoke the significance-screen skill."""
+    monkeypatch.chdir(tmp_path)
+
+    fake_invoker = AsyncMock(return_value={
+        "hamming": {"score": 4, "human_flag": True},
+        "overall_recommendation": "proceed with caveats",
+    })
+    with patch("alpha_research.main._default_skill_invoker", return_value=fake_invoker):
+        result = runner.invoke(app, [
+            "significance", "tactile manipulation of deformable objects",
+            "-o", str(tmp_path / "sig"),
+        ])
+
+    assert result.exit_code == 0
+    assert fake_invoker.call_args.args[0] == "significance-screen"
+
+
+# ---------------------------------------------------------------------------
+# loop command
+# ---------------------------------------------------------------------------
+
+def test_loop_command_missing_project_dir(tmp_path):
+    """loop should fail cleanly when the project dir doesn't exist."""
+    result = runner.invoke(app, ["loop", str(tmp_path / "nonexistent")])
+    assert result.exit_code == 1
+    assert "not found" in result.output.lower()
+
+
+def test_loop_command_happy_path(tmp_path):
+    """loop should delegate to run_research_review_loop and print a summary."""
+    from alpha_research.pipelines.research_review_loop import LoopResult
+
+    fake_result = LoopResult(
+        iterations_run=2,
+        converged=True,
+        submit_ready=False,
+        final_verdict="weak_accept",
+        final_findings=[],
+        backward_triggers_fired=[],
+        stagnation_detected=False,
+    )
+    project_dir = tmp_path / "proj"
+    project_dir.mkdir()
+
+    with patch(
+        "alpha_research.pipelines.research_review_loop.run_research_review_loop",
+        new=AsyncMock(return_value=fake_result),
+    ):
+        result = runner.invoke(app, ["loop", str(project_dir)])
+
+    assert result.exit_code == 0
+    assert "Converged" in result.output
+    assert "weak_accept" in result.output
+
+
+# ---------------------------------------------------------------------------
+# status command
+# ---------------------------------------------------------------------------
+
+def test_status_no_project_dir(tmp_path, monkeypatch):
+    """status with no project dir and no output/ should print a friendly message."""
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(app, ["status"])
+    assert result.exit_code == 0
+    assert "No project directory" in result.output or "Project" in result.output
+
+
+def test_status_with_records(tmp_path):
+    """status should count JSONL records in the given directory."""
+    from alpha_research.records.jsonl import append_record
+
+    append_record(tmp_path, "evaluation", {"paper_id": "p1", "rubric_scores": {}})
+    append_record(tmp_path, "evaluation", {"paper_id": "p2", "rubric_scores": {}})
+    append_record(tmp_path, "review", {"paper_id": "p1", "verdict": "accept"})
+
+    result = runner.invoke(app, ["status", str(tmp_path)])
+    assert result.exit_code == 0
+    assert "evaluation" in result.output
+    assert "2" in result.output
+    assert "review" in result.output

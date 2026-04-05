@@ -53,9 +53,14 @@ async def _run_agent(request: AgentRunRequest) -> None:
     """Execute a research cycle in the background, emitting SSE events."""
     import os
 
-    from alpha_research.config import load_constitution
-    from alpha_research.knowledge.store import KnowledgeStore
-
+    # NOTE (R6 refactor, 2026-04-05): the previous implementation instantiated
+    # ``alpha_research.agents.research_agent.ResearchAgent`` directly. The
+    # agents/ package has been deleted; research workflows now run through
+    # ``alpha_research.pipelines.literature_survey.run_literature_survey`` or
+    # ``alpha_research.pipelines.research_review_loop.run_research_review_loop``.
+    # This endpoint is web-UI-only and has not yet been migrated to the pipeline
+    # entry points — it returns a structured "not-yet-implemented" response so
+    # the frontend continues to load.
     try:
         _agent_state.update(
             state="running",
@@ -66,56 +71,37 @@ async def _run_agent(request: AgentRunRequest) -> None:
         )
 
         await _emit("step_started", {"step": "init", "metadata": {"mode": request.mode}})
-
-        # Initialise store and agent
-        store = KnowledgeStore(db_path="data/knowledge.db")
-        constitution = load_constitution("config/constitution.yaml")
-
-        llm = None
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
-        if api_key:
-            from alpha_research.llm import AnthropicLLM
-
-            llm = AnthropicLLM(api_key=api_key, model="claude-sonnet-4-20250514")
-
-        from alpha_research.agents.research_agent import ResearchAgent
-
-        agent = ResearchAgent(knowledge_store=store, config=constitution, llm=llm)
-
         await _emit("step_finished", {"step": "init", "duration_ms": 0})
 
-        # --- Search phase ------------------------------------------------
         t0 = time.time()
         _agent_state["iteration"] = 1
         await _emit("step_started", {"step": "search", "metadata": {"question": request.question}})
-        await _emit("activity", {"step": "search", "message": "Searching for papers...", "progress": 0.0})
-
         await _emit(
-            "tool_call",
-            {"tool": "arxiv_search", "args": {"query": request.question}},
+            "activity",
+            {
+                "step": "search",
+                "message": (
+                    "Agent API endpoint is pending migration to the new "
+                    "pipelines (post-R6 refactor). Use the CLI "
+                    "`alpha-research survey ...` or "
+                    "`alpha-research evaluate ...` meanwhile."
+                ),
+                "progress": 0.0,
+            },
         )
 
-        # Run the actual agent mode
-        if request.mode == "digest":
-            if llm is not None:
-                report = await agent.run_digest(request.question)
-            else:
-                report = f"[No LLM configured] Would run digest for: {request.question}"
-        elif request.mode == "deep":
-            if llm is not None:
-                report = await agent.run_deep(request.question)
-            else:
-                report = f"[No LLM configured] Would run deep analysis for: {request.question}"
-        else:
-            report = f"Mode '{request.mode}' not yet implemented via API."
-
         duration_ms = int((time.time() - t0) * 1000)
-        await _emit("tool_result", {"tool": "arxiv_search", "result_summary": f"Agent run completed ({duration_ms}ms)"})
-        await _emit("step_finished", {"step": "search", "duration_ms": duration_ms})
-
-        # --- Finished -----------------------------------------------------
-        await _emit("activity", {"step": "search", "message": "Run complete", "progress": 1.0})
-        await _emit("run_finished", {"status": "completed"})
+        await _emit(
+            "step_finished",
+            {"step": "search", "duration_ms": duration_ms},
+        )
+        await _emit(
+            "run_finished",
+            {
+                "status": "not_implemented",
+                "detail": "Agent API is pending pipeline migration",
+            },
+        )
 
         _agent_state["state"] = "idle"
 

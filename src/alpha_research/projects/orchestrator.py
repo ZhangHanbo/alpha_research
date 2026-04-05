@@ -275,32 +275,36 @@ class ProjectOrchestrator:
         )
 
         # Execute research
+        #
+        # NOTE (R6 refactor, 2026-04-05): the previous implementation instantiated
+        # ``alpha_research.agents.research_agent.ResearchAgent`` directly. The
+        # agents/ package has been deleted; research workflows now run through
+        # ``alpha_research.pipelines.literature_survey.run_literature_survey``
+        # (for digest/deep/survey) and
+        # ``alpha_research.pipelines.research_review_loop.run_research_review_loop``
+        # (for the adversarial loop). The project orchestrator has not yet been
+        # migrated to those pipeline entry points — this path records a
+        # placeholder run and returns, so the project lifecycle itself still
+        # works end-to-end for tests that don't exercise agent execution.
         try:
-            store = self.service.get_knowledge_store(project_id)
+            from alpha_research.pipelines.literature_survey import run_literature_survey
 
-            from alpha_research.agents.research_agent import ResearchAgent
-            research_agent = ResearchAgent(
-                knowledge_store=store,
-                llm=self.llm,
-            )
-
-            if mode == "digest":
-                report = await research_agent.run_digest(question)
-                run.summary = f"Digest completed: {len(report)} chars"
-                # Save report
-                report_path = project_dir / "reports" / f"digest_{run.run_id}.md"
-                report_path.parent.mkdir(exist_ok=True)
-                report_path.write_text(report)
-                run.outputs.append(str(report_path))
-            elif mode == "deep":
-                report = await research_agent.run_deep(question)
-                run.summary = f"Deep analysis completed: {len(report)} chars"
-                report_path = project_dir / "reports" / f"deep_{run.run_id}.md"
-                report_path.parent.mkdir(exist_ok=True)
-                report_path.write_text(report)
-                run.outputs.append(str(report_path))
+            if mode in ("digest", "deep", "survey"):
+                result = await run_literature_survey(
+                    query=question,
+                    output_dir=project_dir / "reports" / run.run_id,
+                    apply_rubric=(mode != "digest"),
+                )
+                run.summary = (
+                    f"Literature survey completed: "
+                    f"{result.papers_included}/{result.papers_total} papers"
+                )
+                if result.report_path is not None:
+                    run.outputs.append(str(result.report_path))
+                if result.tex_path is not None:
+                    run.outputs.append(str(result.tex_path))
             else:
-                run.summary = f"Mode '{mode}' executed"
+                run.summary = f"Mode '{mode}' not yet supported post-refactor"
 
             run.status = RunStatus.COMPLETED
         except Exception as e:
