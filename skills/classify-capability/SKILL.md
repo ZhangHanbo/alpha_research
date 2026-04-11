@@ -3,6 +3,7 @@ name: classify-capability
 description: "Classify a paper's demonstrated capability into the three-tier frontier (reliable/sometimes/can't-yet) from research_guideline §5.1 Axis 3. Small skill called in a loop by the frontier-mapping pipeline."
 allowed-tools: Read
 model: claude-sonnet-4-6
+research_stages: [significance, validate]
 ---
 
 # Classify Capability
@@ -132,7 +133,7 @@ claims.
 
 ## References
 
-- `guidelines/research_guideline.md` §5.1 Axis 3 — capability frontier
+- `guidelines/doctrine/research_guideline.md` §5.1 Axis 3 — capability frontier
   (primary source for tier definitions)
-- `guidelines/research_guideline.md` §1.5 — the long tail of the physical
+- `guidelines/doctrine/research_guideline.md` §1.5 — the long tail of the physical
   world (context for why "sometimes" is a large category)

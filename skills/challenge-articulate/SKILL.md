@@ -3,6 +3,7 @@ name: challenge-articulate
 description: From diagnosed failures, identify the structural barrier that resists current solutions. Applies three structural tests and classifies via research_guideline §2.7 challenge→approach table. Use for "what's the real challenge?".
 allowed-tools: Bash, Read, Write, Grep
 model: claude-opus-4-6
+research_stages: [challenge]
 ---
 
 # Challenge Articulate
@@ -183,7 +184,7 @@ the researcher's taste and deep knowledge of the problem's mechanics.
 
 ## References
 
-- `guidelines/research_guideline.md` §2.5 — challenge analysis
-- `guidelines/research_guideline.md` §2.7 — challenge → approach table (primary)
-- `guidelines/review_guideline.md` §3.3 — challenge attack vectors
-- `guidelines/research_plan.md` — guards g3, g4; triggers t6, t12
+- `guidelines/doctrine/research_guideline.md` §2.5 — challenge analysis
+- `guidelines/doctrine/research_guideline.md` §2.7 — challenge → approach table (primary)
+- `guidelines/doctrine/review_guideline.md` §3.3 — challenge attack vectors
+- `guidelines/spec/research_plan.md` — guards g3, g4; triggers t6, t12

@@ -3,6 +3,7 @@ name: experiment-audit
 description: Check whether experiments support the claims. Verifies statistical sufficiency, baselines, ablation isolation, venue thresholds. Detects overclaiming and names the strongest missing baseline. Use for rigor or baseline checks.
 allowed-tools: Bash, Read, Write, Grep
 model: claude-sonnet-4-6
+research_stages: [validate]
 ---
 
 # Experiment Audit
@@ -197,8 +198,8 @@ You CANNOT assess:
 
 ## References
 
-- `guidelines/research_guideline.md` §8 — evaluation standards
-- `guidelines/review_guideline.md` §3.5 — validation attack vectors
-- `guidelines/review_guideline.md` §3.5.3 — overclaiming patterns
-- `guidelines/review_plan.md` §1.6 — experimental metrics and venue thresholds
+- `guidelines/doctrine/research_guideline.md` §8 — evaluation standards
+- `guidelines/doctrine/review_guideline.md` §3.5 — validation attack vectors
+- `guidelines/doctrine/review_guideline.md` §3.5.3 — overclaiming patterns
+- `guidelines/spec/review_plan.md` §1.6 — experimental metrics and venue thresholds
 - `scripts/audit_stats.py` — deterministic statistical audit CLI

@@ -24,10 +24,17 @@ and adversarial review.
   call skills via `claude -p`, which progressive-loads each skill when its
   description matches.
 
-See `guidelines/tools_and_skills.md` for the architecture, `guidelines/refactor_plan.md`
-for the migration history from the earlier agent-centric design, and
-`guidelines/research_guideline.md` + `guidelines/review_guideline.md` for
-the domain standards the skills encode.
+See `guidelines/README.md` for the full index of guideline docs. In short:
+
+- `guidelines/doctrine/` — stable standards (`research_guideline.md`,
+  `review_guideline.md`, `review_standards_reference.md`,
+  `problem_formulation_guide.md`)
+- `guidelines/spec/` — operational specs (`research_plan.md` state machine,
+  `review_plan.md` metrics)
+- `guidelines/architecture/` — current implementation (`tools_and_skills.md`)
+- `guidelines/history/` — superseded plans retained for lineage
+  (`refactor_plan.md`, `TASKS.md`, `project_lifecycle_revision_plan.md`,
+  `FRONTEND.md`, `vibe_research_survey.md`)
 
 
 ## Quick Start

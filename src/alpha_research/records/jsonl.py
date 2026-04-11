@@ -28,12 +28,16 @@ SUPPORTED_RECORD_TYPES: set[str] = {
     "frontier",
     "significance_screen",
     "formalization_check",
+    "benchmark_survey",     # Phase 5 — benchmark selection proposals
     "diagnosis",
     "challenge",
     "method_survey",
     "audit",
     "concurrent_work",
     "gap_report",
+    "experiment_design",    # Phase 6 — experiment configs produced by experiment-design
+    "experiment_analysis",  # Phase 6 — verdicts produced by experiment-analyze
+    "provenance",           # Phase 1 — append-only action lineage
 }
 
 
@@ -177,3 +181,62 @@ def count_records(
         if _matches(record, filters):
             count += 1
     return count
+
+
+# ---------------------------------------------------------------------------
+# Provenance — append-only lineage of every action
+# ---------------------------------------------------------------------------
+
+def log_action(
+    project_dir: Path,
+    action_type: str,
+    action_name: str,
+    project_stage: str,
+    inputs: list[str] | None = None,
+    outputs: list[str] | None = None,
+    parent_ids: list[str] | None = None,
+    summary: str = "",
+) -> str:
+    """Append one provenance record.
+
+    Every CLI verb, skill invocation, and pipeline step should call this.
+    The returned id is the stable handle downstream actions cite as a
+    ``parent_id``.
+
+    Parameters
+    ----------
+    project_dir:
+        The project's directory.
+    action_type:
+        One of ``"skill"``, ``"pipeline"``, ``"cli"``, ``"human"``,
+        ``"transition"``. No enforcement — it's a tag for filtering.
+    action_name:
+        Which skill / pipeline / verb ran. Free-form, but keep it stable
+        so `alpha-research provenance --action <name>` can filter.
+    project_stage:
+        The project stage at the time of the action (lowercase string
+        matching :class:`alpha_research.models.blackboard.ResearchStage`
+        values).
+    inputs:
+        Artifact refs read — file paths or record ids. May be empty.
+    outputs:
+        Artifact refs written — file paths or record ids. May be empty.
+    parent_ids:
+        Prior provenance ids this action built on — e.g. the id of the
+        experiment_design record that motivated an experiment_analysis.
+    summary:
+        One-line human description. Keep it short.
+    """
+    return append_record(
+        Path(project_dir),
+        "provenance",
+        {
+            "action_type": action_type,
+            "action_name": action_name,
+            "project_stage": project_stage,
+            "inputs": list(inputs or []),
+            "outputs": list(outputs or []),
+            "parent_ids": list(parent_ids or []),
+            "summary": summary,
+        },
+    )

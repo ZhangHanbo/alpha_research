@@ -3,6 +3,7 @@ name: gap-analysis
 description: Identify recurring limitations and research opportunities across a body of evaluated papers. Semantic clustering of weaknesses, Hamming-list cross-reference, direction proposals. Use for "what are the open problems?", "where are the gaps?".
 allowed-tools: Bash, Read, Write, Grep
 model: claude-opus-4-6
+research_stages: [significance]
 ---
 
 # Gap Analysis
@@ -208,9 +209,9 @@ and let the human choose.
 
 ## References
 
-- `guidelines/research_guideline.md` §5.1 Axis 1 — bottleneck diagnosis
-- `guidelines/research_guideline.md` §2.2 — significance tests (lightweight
+- `guidelines/doctrine/research_guideline.md` §5.1 Axis 1 — bottleneck diagnosis
+- `guidelines/doctrine/research_guideline.md` §2.2 — significance tests (lightweight
   application to proposed directions)
-- `guidelines/review_guideline.md` §3.3 — challenge attack (for what makes
+- `guidelines/doctrine/review_guideline.md` §3.3 — challenge attack (for what makes
   a gap "structural" vs "resource")
 - `guidelines/hamming_list.md` — the researcher's own list (if present)

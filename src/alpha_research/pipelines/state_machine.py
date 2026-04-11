@@ -6,11 +6,11 @@ mapping from inputs to outputs, which makes the state machine exhaustively
 testable.
 
 References:
-  - ``guidelines/research_plan.md`` — the outer state machine (stages
+  - ``guidelines/spec/research_plan.md`` — the outer state machine (stages
     SIGNIFICANCE → FULL_DRAFT) with forward guards ``g1..g5`` and
     backward triggers ``t2..t15``.
-  - ``guidelines/review_guideline.md`` §3.1-§3.4 — attack vectors that
-    justify each backward trigger.
+  - ``guidelines/doctrine/review_guideline.md`` §3.1-§3.4 — attack vectors
+    that justify each backward trigger.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ from alpha_research.models.review import Finding
 
 # ---------------------------------------------------------------------------
 # Trigger type alias — one of the 13 backward triggers defined in
-# research_plan.md §2.4.
+# guidelines/spec/research_plan.md §2.4.
 # ---------------------------------------------------------------------------
 
 BackwardTrigger = Literal[

@@ -3,6 +3,7 @@ name: identify-method-gaps
 description: Given a comparison table of methods within a solution class, identify what has not yet been tried. Surfaces coverage gaps, unexplored assumption relaxations, novel combinations. Sub-skill of the method-survey pipeline.
 allowed-tools: Read
 model: claude-sonnet-4-6
+research_stages: [approach]
 ---
 
 # Identify Method Gaps
@@ -173,8 +174,8 @@ modes, not just "nobody has tried it").
 
 ## References
 
-- `guidelines/research_guideline.md` §2.7 — challenge → method class map
-- `guidelines/research_guideline.md` §11.2 — research taste (the
+- `guidelines/doctrine/research_guideline.md` §2.7 — challenge → method class map
+- `guidelines/doctrine/research_guideline.md` §11.2 — research taste (the
   "Prediction Exercise" and "Survival Exercise" apply here)
 - `skills/challenge-articulate/SKILL.md` — the skill that produces the
   challenge classification this skill consumes

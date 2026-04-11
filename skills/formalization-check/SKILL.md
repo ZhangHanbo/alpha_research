@@ -3,6 +3,7 @@ name: formalization-check
 description: Assess whether a problem has a proper formal math definition. Detects formalization level, identifies framework (MDP/POMDP/opt/Bayesian), extracts objective/variables/constraints, verifies properties via sympy. Use for "is this well-formalized?".
 allowed-tools: Bash, Read, Write, Grep
 model: claude-opus-4-6
+research_stages: [formalization, approach]
 ---
 
 # Formalization Check
@@ -177,8 +178,8 @@ Provide strong signal. Defer final judgment.
 
 ## References
 
-- `guidelines/research_guideline.md` §2.4 — formalization standards (primary)
-- `guidelines/research_guideline.md` §3.1 — mathematical structure
-- `guidelines/review_guideline.md` §3.2 — formalization attack vectors
-- `guidelines/review_plan.md` §1.3 — formalization metrics
+- `guidelines/doctrine/research_guideline.md` §2.4 — formalization standards (primary)
+- `guidelines/doctrine/research_guideline.md` §3.1 — mathematical structure
+- `guidelines/doctrine/review_guideline.md` §3.2 — formalization attack vectors
+- `guidelines/spec/review_plan.md` §1.3 — formalization metrics
 - `scripts/sympy_verify.py` — symbolic property verification CLI

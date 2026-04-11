@@ -365,209 +365,236 @@ def status(
 
 
 # ---------------------------------------------------------------------------
-# Project lifecycle subcommands (unchanged — use ProjectOrchestrator)
+# Project lifecycle subcommands — Phase 2 of the integrated plan
 # ---------------------------------------------------------------------------
 
-project_app = typer.Typer(help="Project lifecycle commands")
+project_app = typer.Typer(
+    help=(
+        "Project lifecycle commands. A project is a directory under "
+        "output/<name>/ holding three canonical docs — PROJECT.md, "
+        "DISCUSSION.md, LOGS.md — plus stage artifacts (hamming.md, "
+        "formalization.md, benchmarks.md, one_sentence.md), state.json, "
+        "and the JSONL record streams. See "
+        "guidelines/spec/implementation_plan.md Part IV."
+    )
+)
 app.add_typer(project_app, name="project")
 
 
-@project_app.command("create")
-def project_create(
-    name: str = typer.Argument(..., help="Project name"),
-    project_type: str = typer.Option("literature", help="Type: literature|codebase|hybrid"),
-    question: str = typer.Option("", help="Primary research question"),
-    source_path: str = typer.Option(None, help="Path to source directory or repo"),
-    description: str = typer.Option("", help="Project description"),
-    domain: str = typer.Option("", help="Research domain"),
-    api_key: str = typer.Option(None, envvar="ANTHROPIC_API_KEY", help="Anthropic API key"),
-    model: str = typer.Option(None, help="Model to use"),
+@project_app.command("init")
+def project_init(
+    name: str = typer.Argument(..., help="Project name (directory basename)"),
+    code: str = typer.Option(None, "--code", "-c", help="Absolute path to the method code directory"),
+    question: str = typer.Option("", "--question", "-q", help="Primary research question"),
+    venue: str = typer.Option("RSS", "--venue", help="Target venue"),
+    output_dir: str = typer.Option(None, "-o", "--output", help="Parent directory (default: output/)"),
 ) -> None:
-    """Create a new research project."""
-    from alpha_research.projects.orchestrator import ProjectOrchestrator
+    """Scaffold a new project directory.
 
-    llm = _make_llm(api_key, model)
-    orch = ProjectOrchestrator(llm=llm)
+    Creates ``<parent>/<name>/`` with the three canonical docs
+    (PROJECT.md, DISCUSSION.md, LOGS.md), the stage artifact templates
+    (hamming.md, formalization.md, benchmarks.md, one_sentence.md),
+    an initial ``state.json`` at SIGNIFICANCE stage, and the first
+    provenance record. Does nothing if the directory already contains
+    a ``state.json``.
+    """
+    from alpha_research.project import init_project
+    from alpha_research.templates import scaffold_project_markdown
 
-    try:
-        manifest = asyncio.run(orch.create_and_understand(
-            name=name,
-            project_type=project_type,
-            primary_question=question,
-            source_path=source_path,
-            description=description,
-            domain=domain,
-        ))
-    except Exception as exc:
-        typer.echo(f"Error creating project: {exc}", err=True)
+    parent = Path(output_dir) if output_dir else Path("output")
+    project_dir = parent / name
+    if (project_dir / "state.json").exists():
+        typer.echo(f"Project already exists at {project_dir}", err=True)
         raise typer.Exit(code=1)
 
-    typer.echo(f"Project created: {manifest.name}")
-    typer.echo(f"  ID:   {manifest.project_id}")
-    typer.echo(f"  Slug: {manifest.slug}")
-    typer.echo(f"  Type: {manifest.project_type.value}")
-    typer.echo(f"  Dir:  data/projects/{manifest.slug}/")
+    # Initialize state first (this creates the dir + state.json + provenance).
+    state = init_project(
+        project_dir,
+        project_id=name,
+        question=question,
+        code_dir=code,
+        target_venue=venue,
+    )
+    # Then scaffold the human-owned markdown templates.
+    written = scaffold_project_markdown(
+        project_dir,
+        project_id=name,
+        question=question or "<fill in your research question>",
+        created_at=state.created_at,
+    )
+
+    typer.echo(f"Project initialized: {project_dir}")
+    typer.echo(f"  Stage:   {state.current_stage}")
+    typer.echo(f"  Venue:   {state.target_venue}")
+    if code:
+        typer.echo(f"  Code:    {code}")
+    typer.echo(f"  Templates written: {len(written)}")
+    typer.echo("")
+    typer.echo("Required docs: PROJECT.md, DISCUSSION.md, LOGS.md")
+    typer.echo("Next: edit PROJECT.md + hamming.md, then run skills to")
+    typer.echo("populate significance_screens.jsonl, then `project advance`.")
 
 
-@project_app.command("list")
-def project_list() -> None:
-    """List all projects."""
-    from alpha_research.projects.orchestrator import ProjectOrchestrator
+@project_app.command("stage")
+def project_stage_cmd(
+    project_dir: str = typer.Argument(None, help="Project directory (default: most recent under output/)"),
+) -> None:
+    """Show the current stage and forward-guard status."""
+    from alpha_research.project import stage_summary
 
-    orch = ProjectOrchestrator()
-    projects = orch.list_projects()
+    target = _resolve_project_dir(project_dir)
+    summary = stage_summary(target)
+    typer.echo(summary.render())
 
-    if not projects:
-        typer.echo("No projects found.")
-        return
 
-    typer.echo(f"{'ID':<14} {'Status':<10} {'Type':<12} {'Name'}")
-    typer.echo("-" * 60)
-    for m in projects:
-        typer.echo(
-            f"{m.project_id:<14} {m.status.value:<10} "
-            f"{m.project_type.value:<12} {m.name}"
+@project_app.command("advance")
+def project_advance_cmd(
+    project_dir: str = typer.Argument(None, help="Project directory"),
+    force: bool = typer.Option(False, "--force", help="Force advance even if the guard fails"),
+    note: str = typer.Option("", "--note", help="Optional note recorded with the transition"),
+) -> None:
+    """Advance to the next stage if the forward guard passes."""
+    from alpha_research.project import GuardBlocked, advance
+
+    target = _resolve_project_dir(project_dir)
+    try:
+        transition = advance(target, force=force, note=note)
+    except GuardBlocked as exc:
+        typer.echo(exc.check.summary(), err=True)
+        typer.echo("", err=True)
+        typer.echo("Advance refused. Add the missing artifacts or pass --force (with a --note).", err=True)
+        raise typer.Exit(code=1)
+
+    typer.echo(f"✓ advanced {transition.from_stage} → {transition.to_stage}  ({transition.trigger})")
+    if transition.note:
+        typer.echo(f"  note: {transition.note}")
+
+
+@project_app.command("backward")
+def project_backward_cmd(
+    trigger: str = typer.Argument(..., help="One of t2..t15"),
+    project_dir: str = typer.Argument(None, help="Project directory"),
+    constraint: str = typer.Option(..., "--constraint", "-c", help="What did you learn? (mandatory)"),
+    evidence: str = typer.Option("", "--evidence", "-e", help="Pointer to the record that motivated this"),
+    note: str = typer.Option("", "--note", help="Extra notes"),
+) -> None:
+    """Execute a backward transition, recording the carried constraint."""
+    from alpha_research.project import backward
+
+    target = _resolve_project_dir(project_dir)
+    try:
+        transition = backward(
+            target,
+            trigger=trigger,
+            carried_constraint=constraint,
+            evidence=evidence,
+            note=note,
         )
-
-
-@project_app.command("show")
-def project_show(
-    project_id: str = typer.Argument(..., help="Project ID"),
-) -> None:
-    """Show project details."""
-    from alpha_research.projects.orchestrator import ProjectOrchestrator
-
-    orch = ProjectOrchestrator()
-    try:
-        manifest, state = orch.get_project(project_id)
-    except ValueError:
-        typer.echo(f"Project not found: {project_id}", err=True)
+    except ValueError as exc:
+        typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(code=1)
 
-    typer.echo(f"Name:     {manifest.name}")
-    typer.echo(f"ID:       {manifest.project_id}")
-    typer.echo(f"Type:     {manifest.project_type.value}")
-    typer.echo(f"Status:   {manifest.status.value}")
-    typer.echo(f"Question: {manifest.primary_question}")
-    typer.echo(f"State:    {state.current_status.value}")
-    if state.current_snapshot_id:
-        typer.echo(f"Snapshot: {state.current_snapshot_id}")
-    if state.last_completed_run_id:
-        typer.echo(f"Last run: {state.last_completed_run_id}")
+    typer.echo(
+        f"↩ backward {transition.from_stage} → {transition.to_stage}  "
+        f"({transition.trigger})"
+    )
+    typer.echo(f"  carried: {transition.carried_constraint}")
 
-    if manifest.source_bindings:
-        typer.echo(f"\nSource bindings:")
-        for b in manifest.source_bindings:
-            typer.echo(f"  [{b.binding_type.value}] {b.root_path}")
 
-    snapshots = orch.list_snapshots(project_id)
-    typer.echo(f"\nSnapshots: {len(snapshots)}")
+@project_app.command("log")
+def project_log_cmd(
+    project_dir: str = typer.Argument(None, help="Project directory"),
+) -> None:
+    """Append a weekly log entry template to LOGS.md.
 
-    runs = orch.list_runs(project_id)
-    typer.echo(f"Runs:      {len(runs)}")
+    Does NOT open $EDITOR automatically — instead, it appends the template
+    and prints the path so the researcher can open it in whatever editor
+    they prefer. This keeps the CLI scriptable.
+    """
+    from datetime import datetime, timezone
+
+    target = _resolve_project_dir(project_dir)
+    log_path = target / "LOGS.md"
+    if not log_path.exists():
+        typer.echo(f"No LOGS.md in {target} — run `project init` first", err=True)
+        raise typer.Exit(code=1)
+
+    week_header = datetime.now(timezone.utc).strftime("### Week of %Y-%m-%d")
+    entry = (
+        f"\n{week_header}\n\n"
+        "- **Tried**:\n"
+        "- **Expected**:\n"
+        "- **Observed**:\n"
+        "- **Concluded**:\n"
+        "- **Next**:\n"
+    )
+    with log_path.open("a", encoding="utf-8") as fp:
+        fp.write(entry)
+    typer.echo(f"Appended weekly template to {log_path}")
+    typer.echo("Edit it in your preferred editor.")
 
 
 @project_app.command("status")
-def project_status(
-    project_id: str = typer.Argument(..., help="Project ID"),
+def project_status_cmd(
+    project_dir: str = typer.Argument(None, help="Project directory"),
 ) -> None:
-    """Show project operational status."""
-    from alpha_research.projects.orchestrator import ProjectOrchestrator
+    """Show a one-screen summary of a project.
 
-    orch = ProjectOrchestrator()
-    try:
-        _, state = orch.get_project(project_id)
-    except ValueError:
-        typer.echo(f"Project not found: {project_id}", err=True)
-        raise typer.Exit(code=1)
-
-    typer.echo(f"Status:   {state.current_status.value}")
-    typer.echo(f"Resume:   {'required' if state.resume_required else 'not required'}")
-    typer.echo(f"Changed:  {'yes' if state.source_changed_since_last_snapshot else 'no'}")
-    if state.active_run_id:
-        typer.echo(f"Active:   {state.active_run_id}")
-    if state.last_completed_run_id:
-        typer.echo(f"Last run: {state.last_completed_run_id}")
-    if state.last_resumed_at:
-        typer.echo(f"Resumed:  {state.last_resumed_at}")
-
-
-@project_app.command("snapshot")
-def project_snapshot(
-    project_id: str = typer.Argument(..., help="Project ID"),
-    note: str = typer.Option("", help="Snapshot note"),
-    milestone: bool = typer.Option(False, help="Mark as milestone"),
-    milestone_name: str = typer.Option(None, help="Milestone name (for git tag)"),
-) -> None:
-    """Create a manual project snapshot."""
-    from alpha_research.projects.orchestrator import ProjectOrchestrator
-
-    orch = ProjectOrchestrator()
-    try:
-        snap = asyncio.run(orch.create_manual_snapshot(
-            project_id,
-            note=note,
-            milestone=milestone,
-            milestone_name=milestone_name,
-        ))
-    except ValueError as exc:
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(code=1)
-
-    kind = snap.snapshot_kind.value
-    typer.echo(f"Snapshot created: {snap.snapshot_id} ({kind})")
-    if note:
-        typer.echo(f"  Note: {note}")
-
-
-@project_app.command("resume")
-def project_resume(
-    project_id: str = typer.Argument(..., help="Project ID"),
-    mode: str = typer.Option("current_workspace", help="Mode: current_workspace|exact_snapshot|milestone"),
-    snapshot_id: str = typer.Option(None, help="Snapshot ID"),
-    api_key: str = typer.Option(None, envvar="ANTHROPIC_API_KEY", help="Anthropic API key"),
-    model: str = typer.Option(None, help="Model to use"),
-) -> None:
-    """Resume a project."""
-    from alpha_research.projects.orchestrator import ProjectOrchestrator
-
-    llm = _make_llm(api_key, model)
-    orch = ProjectOrchestrator(llm=llm)
-
-    try:
-        state = asyncio.run(orch.resume_and_continue(
-            project_id, mode=mode, snapshot_id=snapshot_id,
-        ))
-    except ValueError as exc:
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(code=1)
-    except Exception as exc:
-        typer.echo(f"Error resuming: {exc}", err=True)
-        raise typer.Exit(code=1)
-
-    typer.echo(f"Project resumed successfully.")
-    typer.echo(f"  Status:   {state.current_status.value}")
-    typer.echo(f"  Snapshot: {state.current_snapshot_id}")
-
-
-# ---------------------------------------------------------------------------
-# LLM helper (retained for project subcommands that need an LLM client)
-# ---------------------------------------------------------------------------
-
-def _make_llm(api_key: str | None = None, model: str | None = None):
-    """Create an LLM client for the project subcommands.
-
-    Projects use :class:`alpha_research.projects.understanding.UnderstandingAgent`
-    which accepts an optional ``LLMCallable``. The core research/review
-    commands do NOT go through this path — they invoke Claude Code skills
-    via the ``claude`` CLI (see ``_default_skill_invoker``).
+    Includes: stage, days in stage, record counts, latest review verdict,
+    open backward triggers. Safe on projects that don't have a state.json
+    yet — falls back to the legacy JSONL-only ``status`` behaviour.
     """
-    from alpha_research.llm import AnthropicLLM
+    from alpha_research.records.jsonl import count_records, read_records, SUPPORTED_RECORD_TYPES
 
-    key = api_key or os.environ.get("ANTHROPIC_API_KEY")
-    if not key:
-        return None
-    return AnthropicLLM(api_key=key, model=model or "claude-sonnet-4-20250514")
+    target = _resolve_project_dir(project_dir)
+
+    # Try to load state.json; if it's absent, fall back to counts only.
+    state_loaded = None
+    try:
+        from alpha_research.project import load_state, stage_summary
+        state_loaded = load_state(target)
+        summary = stage_summary(target)
+        typer.echo(summary.render())
+        typer.echo("")
+    except FileNotFoundError:
+        typer.echo(f"Project: {target}  (no state.json — legacy layout)")
+
+    for record_type in sorted(SUPPORTED_RECORD_TYPES):
+        try:
+            n = count_records(target, record_type)
+        except Exception:
+            n = 0
+        if n > 0:
+            typer.echo(f"  {record_type:22}: {n}")
+
+    try:
+        reviews = read_records(target, "review", limit=5)
+    except Exception:
+        reviews = []
+    if reviews:
+        latest = reviews[-1]
+        verdict = latest.get("verdict", "unknown")
+        typer.echo(f"\nLatest verdict: {verdict}")
+
+
+def _resolve_project_dir(project_dir: str | None) -> Path:
+    """Resolve an explicit project_dir or pick the most-recent under output/."""
+    if project_dir:
+        target = Path(project_dir)
+        if not target.exists():
+            typer.echo(f"No such directory: {target}", err=True)
+            raise typer.Exit(code=1)
+        return target
+
+    output_root = Path("output")
+    if not output_root.exists():
+        typer.echo("No project specified and no output/ directory found.", err=True)
+        raise typer.Exit(code=1)
+    subdirs = [p for p in output_root.iterdir() if p.is_dir()]
+    if not subdirs:
+        typer.echo("No projects found under output/.", err=True)
+        raise typer.Exit(code=1)
+    return max(subdirs, key=lambda p: p.stat().st_mtime)
 
 
 if __name__ == "__main__":

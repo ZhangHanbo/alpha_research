@@ -3,6 +3,7 @@ name: adversarial-review
 description: Full adversarial review at top-venue standard (RSS/CoRL/IJRR/T-RO). Graduated pressure, six attack vectors from review_guideline §3.1-3.6, mechanical verdict via metrics.verdict. Use to review, critique, audit a paper, or self-review a draft.
 allowed-tools: Bash, Read, Write, Edit, Grep, Task
 model: claude-opus-4-6
+research_stages: [validate]
 ---
 
 # Adversarial Review
@@ -297,12 +298,12 @@ Anti-patterns to avoid (review_guideline.md §5.4):
 
 ## References
 
-- `guidelines/review_guideline.md` Part III — attack vectors §3.1-3.6 (primary)
-- `guidelines/review_guideline.md` Part IV — venue calibration
-- `guidelines/review_guideline.md` §5.4 — anti-patterns
-- `guidelines/review_plan.md` §1 — executable metrics for every finding
-- `guidelines/review_plan.md` §1.9 — verdict computation rules
-- `guidelines/review_plan.md` §3 — graduated pressure protocol
+- `guidelines/doctrine/review_guideline.md` Part III — attack vectors §3.1-3.6 (primary)
+- `guidelines/doctrine/review_guideline.md` Part IV — venue calibration
+- `guidelines/doctrine/review_guideline.md` §5.4 — anti-patterns
+- `guidelines/spec/review_plan.md` §1 — executable metrics for every finding
+- `guidelines/spec/review_plan.md` §1.9 — verdict computation rules
+- `guidelines/spec/review_plan.md` §3 — graduated pressure protocol
 - `skills/concurrent-work-check/SKILL.md` — sub-skill
 - `skills/formalization-check/SKILL.md` — sub-skill
 - `skills/experiment-audit/SKILL.md` — sub-skill

@@ -3,6 +3,7 @@ name: concurrent-work-check
 description: Detect whether a research problem has been solved by concurrent or recent work. Multi-query search, citation-graph expansion, pairwise comparison. Use for "has anyone done this?", "what concurrent work exists?", scooping risk checks.
 allowed-tools: Bash, Read, Write
 model: claude-sonnet-4-6
+research_stages: [challenge, approach, validate]
 ---
 
 # Concurrent Work Check
@@ -238,7 +239,7 @@ the bulk of the literature and are usually sufficient.
 
 ## References
 
-- `guidelines/research_guideline.md` §2.2 — concurrent work test
-- `guidelines/research_guideline.md` §2.6 — why-now timing
-- `guidelines/review_guideline.md` §3.1 — concurrent work attack vector
-- `guidelines/research_plan.md` — backward triggers t5, t9
+- `guidelines/doctrine/research_guideline.md` §2.2 — concurrent work test
+- `guidelines/doctrine/research_guideline.md` §2.6 — why-now timing
+- `guidelines/doctrine/review_guideline.md` §3.1 — concurrent work attack vector
+- `guidelines/spec/research_plan.md` — backward triggers t5, t9

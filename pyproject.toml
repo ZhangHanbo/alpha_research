@@ -16,14 +16,13 @@ dependencies = [
     "pyyaml>=6.0",
     "arxiv>=2.1",
     "anthropic>=0.40",
-    "fastapi>=0.100",
-    "uvicorn[standard]>=0.20",
-    "sse-starlette>=1.6",
-    "sympy>=1.12",  # R1: sympy_verify.py helper
-    "scipy>=1.11",  # R1: audit_stats.py helper
+    "sympy>=1.12",     # scripts/sympy_verify.py
+    "scipy>=1.11",     # scripts/audit_stats.py
     # alpha_review is installed separately as an editable dependency:
     #   pip install -e ../alpha_review
-    # See guidelines/refactor_plan.md Part 0 for setup.
+    # See guidelines/history/refactor_plan.md Part 0 for setup.
+    # Phase 0 of the integrated-state-machine plan removed fastapi,
+    # uvicorn, and sse-starlette along with the frontend and api/ layer.
 ]
 
 [project.optional-dependencies]

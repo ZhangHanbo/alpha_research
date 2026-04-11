@@ -3,6 +3,7 @@ name: significance-screen
 description: Evaluate whether a research problem is worth pursuing. Applies Hamming, Consequence, Durability, and Compounding tests from research_guideline §2.2. Use for "is this significant?", "should I work on X?".
 allowed-tools: Bash, Read, Write, Grep
 model: claude-opus-4-6
+research_stages: [significance]
 ---
 
 # Significance Screen
@@ -203,7 +204,7 @@ gives signal but not certainty.
 
 ## References
 
-- `guidelines/research_guideline.md` §2.2 — significance tests (primary)
-- `guidelines/review_guideline.md` §3.1 — significance attack vectors
-- `guidelines/review_plan.md` §1.2 — significance metrics
+- `guidelines/doctrine/research_guideline.md` §2.2 — significance tests (primary)
+- `guidelines/doctrine/review_guideline.md` §3.1 — significance attack vectors
+- `guidelines/spec/review_plan.md` §1.2 — significance metrics
 - `guidelines/hamming_list.md` — the researcher's own list (if present)

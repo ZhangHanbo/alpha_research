@@ -37,11 +37,15 @@ def test_cli_has_all_commands():
 
 
 def test_project_subtree_exists():
-    """The project-lifecycle subtree should still work after the refactor."""
+    """After Phase 0 of the integrated-state-machine plan the old
+    ``create/list/show/status/snapshot/resume`` subcommands are gone; the
+    new ``init/stage/advance/backward/log/status`` verbs land in Phase 2.
+    For now the ``project`` group just exists with a placeholder callback.
+    """
     result = runner.invoke(app, ["project", "--help"])
     assert result.exit_code == 0
-    for sub in ("create", "list", "show", "status", "snapshot", "resume"):
-        assert sub in result.output
+    # Just check the subtree is registered — no subcommands yet.
+    assert "project" in result.output.lower()
 
 
 # ---------------------------------------------------------------------------

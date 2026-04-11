@@ -27,5 +27,5 @@ Most integration tests require:
 Tests without those prerequisites are skipped cleanly with
 ``pytest.skip(..., allow_module_level=False)``.
 
-See ``guidelines/refactor_plan.md`` Part V Phase R8 for the full test plan.
+See ``guidelines/history/refactor_plan.md`` Part V Phase R8 for the full test plan.
 """

@@ -3,6 +3,7 @@ name: paper-evaluate
 description: Evaluate a robotics paper against the Appendix B rubric (B.1-B.7). Produces scores with evidence, task chain, significance assessment, honesty flags. Use to evaluate, score, grade, or analyze a paper.
 allowed-tools: Bash, Read, Write, Grep
 model: claude-sonnet-4-6
+research_stages: [significance, approach]
 ---
 
 # Paper Evaluate
@@ -215,8 +216,8 @@ affected dimensions with `confidence="low"` and add an entry to
 
 ## References
 
-- `guidelines/research_guideline.md` Appendix B — full rubric (B.1-B.7)
-- `guidelines/research_guideline.md` §2.1 — the task chain
-- `guidelines/research_guideline.md` §2.2 — significance tests
-- `guidelines/review_plan.md` §1.1 — logical chain completeness metrics
+- `guidelines/doctrine/research_guideline.md` Appendix B — full rubric (B.1-B.7)
+- `guidelines/doctrine/research_guideline.md` §2.1 — the task chain
+- `guidelines/doctrine/research_guideline.md` §2.2 — significance tests
+- `guidelines/spec/review_plan.md` §1.1 — logical chain completeness metrics
 - `skills/paper-evaluate/rubric.md` (companion file, to be added after approval)

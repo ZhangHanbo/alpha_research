@@ -37,7 +37,7 @@ def test_calibration_against_human_gold(tmp_path, skip_if_no_claude):
         pytest.skip(
             f"Calibration fixture missing: {_FIXTURE_PATH}. "
             "The user must curate 10 papers + human gold labels before this "
-            "test can run. See guidelines/refactor_plan.md Part V Phase R8.3."
+            "test can run. See guidelines/history/refactor_plan.md Part V Phase R8.3."
         )
 
     fixtures = json.loads(_FIXTURE_PATH.read_text())

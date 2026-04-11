@@ -3,6 +3,7 @@ name: diagnose-system
 description: Run a minimal end-to-end robotics system, observe failures, classify into a taxonomy, and map each failure to terms in the formal problem structure. Use for "diagnose what's failing", "what's actually the bottleneck".
 allowed-tools: Bash, Read, Write, Edit, Grep, Glob, NotebookEdit
 model: claude-sonnet-4-6
+research_stages: [diagnose]
 ---
 
 # Diagnose System
@@ -202,7 +203,7 @@ researcher watch the trial recording.
 
 ## References
 
-- `guidelines/research_guideline.md` §2.4 — empirical diagnosis (primary)
-- `guidelines/research_guideline.md` §8.1 — failure taxonomy
-- `guidelines/research_plan.md` — backward trigger t4 (DIAGNOSE→FORMALIZE)
+- `guidelines/doctrine/research_guideline.md` §2.4 — empirical diagnosis (primary)
+- `guidelines/doctrine/research_guideline.md` §8.1 — failure taxonomy
+- `guidelines/spec/research_plan.md` — backward trigger t4 (DIAGNOSE→FORMALIZE)
 - `scripts/audit_stats.py` — for local log directory statistics
