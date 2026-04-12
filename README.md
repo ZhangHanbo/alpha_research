@@ -1,237 +1,32 @@
 # Alpha Research
 
-A **skills-first** research system for robotics paper discovery, evaluation,
-and adversarial review.
+**A skills-first robotics research system.** Automates paper discovery,
+evaluation, and adversarial review by encoding doctoral-level robotics
+research judgment into Claude Code Agent Skills paired with Python
+pipelines.
 
-**Architecture (post-R6 refactor, 2026-04-05):**
+You run it from the CLI. It surveys literature via the `alpha_review`
+dependency, applies the Appendix B rubric to every paper, walks a
+two-layer research state machine (SIGNIFICANCE → FORMALIZE → DIAGNOSE
+→ CHALLENGE → APPROACH → VALIDATE) with backward error detection, and
+runs an adversarial research-review convergence loop that applies
+six attack vectors at venue standard.
 
-- **Skills** (`.claude/skills/*/SKILL.md`, currently staged in `skills/`) encode
-  research- and review-guideline knowledge as Claude Code Agent Skills. 11
-  skills cover paper evaluation (Appendix B rubric), significance screening
-  (Hamming/Consequence/Durability/Compounding tests), formalization checking,
-  empirical diagnosis, challenge articulation, experiment auditing,
-  adversarial review at top-venue standard, concurrent work detection,
-  gap analysis, and capability-frontier classification.
-- **Python pipelines** (`src/alpha_research/pipelines/`) provide deterministic
-  orchestration: literature-survey (wraps `alpha-review` CLI + paper-evaluate
-  loop + synthesis), method-survey, frontier-mapping, and a
-  research-review convergence loop.
-- **alpha_review** (dependency at `../alpha_review`) provides all scholarly
-  API clients (ArXiv, Semantic Scholar, OpenAlex, Google Scholar, Unpaywall),
-  a SQLite-backed paper store, and the literature-survey-pipeline CLI
-  `alpha-review`.
-- **Claude Code skill invocation** drives all judgment-heavy work. Pipelines
-  call skills via `claude -p`, which progressive-loads each skill when its
-  description matches.
+This README is the **entrance**: install, run, CLI reference,
+project layout. For the design, see `docs/PROJECT.md`. For the
+plan, see `docs/PLAN.md`. For the surveys that grounded it, see
+`docs/SURVEY.md`. For design decisions and migration history, see
+`docs/DISCUSSION.md`. For the append-only development log, see
+`docs/LOGS.md`.
 
-See `guidelines/README.md` for the full index of guideline docs. In short:
+---
 
-- `guidelines/doctrine/` — stable standards (`research_guideline.md`,
-  `review_guideline.md`, `review_standards_reference.md`,
-  `problem_formulation_guide.md`)
-- `guidelines/spec/` — operational specs (`research_plan.md` state machine,
-  `review_plan.md` metrics)
-- `guidelines/architecture/` — current implementation (`tools_and_skills.md`)
-- `guidelines/history/` — superseded plans retained for lineage
-  (`refactor_plan.md`, `TASKS.md`, `project_lifecycle_revision_plan.md`,
-  `FRONTEND.md`, `vibe_research_survey.md`)
-
-
-## Quick Start
-
-### 1. Install
-
-```bash
-conda create -n alpha_research python=3.11 -y
-conda activate alpha_research
-conda install -c conda-forge nodejs=20 -y
-
-# Install backend
-pip install -e ".[dev]"
-pip install fastapi uvicorn sse-starlette
-
-# Install frontend
-cd frontend && npm install && cd ..
-```
-
-### 2. Set your API key (optional — needed for LLM features)
-
-```bash
-export ANTHROPIC_API_KEY="sk-ant-..."
-```
-
-Without a key, the system still runs search, paper fetching, and report
-generation — it just skips LLM-based evaluation and review.
-
-### 3. Run a research task (CLI)
-
-The CLI surface (post-R6/R7 refactor):
-
-```bash
-# Full literature survey — wraps alpha-review CLI + paper-evaluate rubric loop
-alpha-research survey "tactile manipulation for deformable objects" -o output/tactile
-
-# Single-paper Appendix B rubric evaluation
-alpha-research evaluate arxiv:2501.12345 -o output/single
-
-# Adversarial review at top-venue standard
-alpha-research review path/to/paper.md --venue RSS -o output/reviews
-
-# Screen a candidate problem for significance (Hamming/Consequence/Durability/Compounding)
-alpha-research significance "contact-rich manipulation under uncertainty"
-
-# Run the full adversarial research-review convergence loop on a project
-alpha-research loop output/tactile --venue RSS --max-iterations 5
-
-# Summarize a project's JSONL records
-alpha-research status output/tactile
-```
-
-Output is persisted as JSONL records (`evaluation.jsonl`, `review.jsonl`,
-`finding.jsonl`, `frontier.jsonl`, etc.) under the project directory. The
-`survey` command also produces a LaTeX survey + compiled PDF via
-`alpha-review`'s `run_write` pipeline.
-
-### 4. Launch the web dashboard to monitor tasks
-
-Open two terminals:
-
-**Terminal 1 — Backend API:**
-
-```bash
-conda activate alpha_research
-uvicorn alpha_research.api.app:app --port 8000 --reload
-```
-
-**Terminal 2 — Frontend:**
-
-```bash
-cd frontend
-npm run dev
-```
-
-Open **http://localhost:3000**. The dashboard shows three views:
-
-- **Evaluation Table** — papers as rows, rubric scores as columns,
-  click to expand evidence
-- **Activity Timeline** (left sidebar) — real-time agent progress
-  when a research run is active
-- **Knowledge Graph** — force-directed visualization of paper
-  relationships
-
-To start a run from the dashboard, type a research question in the top
-bar, choose a mode and venue, and click **Run**.
-
-### 5. Run the full adversarial research-review loop (requires Claude CLI)
-
-```bash
-alpha-research loop output/my_project --venue RSS --max-iterations 5
-```
-
-The orchestrator will prompt for human input at checkpoints. The
-blackboard saves to `data/blackboard.json`.
-
-
-## CLI Reference
-
-```
-alpha-research survey       <query> -o <dir>                    # literature_survey pipeline
-alpha-research evaluate     <paper_id> -o <dir>                 # paper-evaluate skill
-alpha-research review       <artifact.md> --venue RSS -o <dir>  # adversarial-review skill
-alpha-research significance <problem>                           # significance-screen skill
-alpha-research loop         <project_dir> --venue RSS           # research_review_loop pipeline
-alpha-research status       [<project_dir>]                     # summarize JSONL records
-
-alpha-research project create|list|show|status|snapshot|resume  # project lifecycle
-```
-
-**Venues** (strictest to most lenient): IJRR, T-RO, RSS, CoRL, RA-L, ICRA, IROS.
-
-
-## Project Structure
-
-```
-alpha_research/
-├── .claude/skills/                # ACTIVE Claude Code skills (populated from skills/)
-├── skills/                        # STAGING — 11 SKILL.md files pending review
-│   ├── paper-evaluate/            #   Canonical rubric scoring (Sonnet)
-│   ├── significance-screen/       #   Hamming/Consequence/Durability tests (Opus)
-│   ├── formalization-check/       #   Math detection + sympy verify (Opus)
-│   ├── diagnose-system/           #   Failure taxonomy + formal mapping (Sonnet)
-│   ├── challenge-articulate/      #   Structural barrier ID (Opus)
-│   ├── experiment-audit/          #   Stats + baselines + overclaiming (Sonnet)
-│   ├── adversarial-review/        #   Full 6-attack-vector review (Opus, largest)
-│   ├── concurrent-work-check/     #   Scoop detection (Sonnet)
-│   ├── gap-analysis/              #   Semantic clustering (Opus)
-│   ├── classify-capability/       #   Frontier tier assignment (Sonnet)
-│   └── identify-method-gaps/      #   Method-class coverage gaps (Sonnet)
-│
-├── config/                        # YAML configs (constitution, review)
-├── guidelines/                    # Doctrinal + plan documents
-│   ├── research_guideline.md      #   Standards the skills encode
-│   ├── review_guideline.md        #   Adversarial review standards
-│   ├── research_plan.md           #   State machine + SM-1..SM-6 specs
-│   ├── review_plan.md             #   Executable metrics
-│   ├── tools_and_skills.md        #   Current architecture
-│   ├── refactor_plan.md           #   R0-R9 migration plan
-│   └── TASKS.md                   #   Task breakdown
-│
-├── scripts/                       # Helper CLIs called by skills
-│   ├── sympy_verify.py            #   Mathematical property verification
-│   └── audit_stats.py             #   Statistical audit
-│
-├── src/alpha_research/
-│   ├── pipelines/                 # Deterministic Python orchestration
-│   │   ├── state_machine.py       #   Pure functions: g1-g5, t2-t15
-│   │   ├── literature_survey.py   #   alpha-review CLI + paper-evaluate loop
-│   │   ├── method_survey.py       #   Search + graph + evaluate loop
-│   │   ├── frontier_mapping.py    #   classify-capability loop + diff
-│   │   └── research_review_loop.py#   Adversarial convergence loop
-│   ├── records/
-│   │   └── jsonl.py               #   append/read/count JSONL records
-│   ├── metrics/
-│   │   ├── verdict.py             #   Pure compute_verdict (per review_plan §1.9)
-│   │   ├── review_quality.py      #   Actionability, grounding, anti-patterns
-│   │   ├── convergence.py         #   Convergence, stagnation detection
-│   │   └── finding_tracker.py     #   Cross-iteration finding tracking
-│   ├── reports/
-│   │   └── templates.py           #   DIGEST + DEEP rubric templates (Jinja2)
-│   ├── models/                    # Pydantic data models
-│   │   ├── research.py            #   Evaluation, TaskChain, RubricScore, ...
-│   │   ├── review.py              #   Finding, Review, Verdict, ...
-│   │   ├── blackboard.py          #   Blackboard, ResearchArtifact, Venue
-│   │   ├── project.py             #   ProjectManifest, ProjectState
-│   │   └── snapshot.py            #   SourceSnapshot, ProjectSnapshot
-│   ├── tools/
-│   │   └── paper_fetch.py         #   PDF download + pymupdf extraction
-│   ├── projects/                  # Project lifecycle layer (KEEP)
-│   │   ├── orchestrator.py        #   Project-level orchestration
-│   │   ├── registry.py, resume.py, snapshots.py, ...
-│   │   └── understanding.py       #   Project understanding (uses claude_call)
-│   ├── api/                       # FastAPI backend (KEEP)
-│   │   ├── app.py, models.py
-│   │   └── routers/               #   papers, evaluations, graph, agent
-│   ├── config.py                  # YAML config loaders
-│   ├── llm.py                     # Anthropic API client wrapper
-│   └── main.py                    # Typer CLI
-│
-├── frontend/                      # Next.js 15 web dashboard
-└── tests/                         # 277 unit + 3 integration (opt-in)
-```
-
-**Note:** `src/alpha_research/agents/` and `src/alpha_research/prompts/` were
-removed in Phase R6 of the refactor. Their logic migrated to `pipelines/`
-(Python orchestration) and `skills/` (domain-knowledge markdown recipes).
-`knowledge/store.py` is DEFERRED — it's still consumed by `main.py` web-UI
-paths and `projects/service.py`; its removal is scheduled for a follow-up
-refactor once those callers migrate to `records.jsonl` + `alpha_review.ReviewState`.
-
-### Architecture
+## Architecture at a Glance
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │  Claude Code                                                        │
-│    reads .claude/skills/*/SKILL.md when description matches         │
+│    reads skills/*/SKILL.md when description matches                 │
 │    invokes tools: Bash, Read, Write, Edit, Grep, Glob, Task, ...    │
 └──────────────────────────┬──────────────────────────────────────────┘
                            │
@@ -244,18 +39,18 @@ refactor once those callers migrate to `records.jsonl` + `alpha_review.ReviewSta
 │   ├─ significance-screen     ├─ method_survey       │               │
 │   ├─ formalization-check     ├─ frontier_mapping    │ call skills   │
 │   ├─ adversarial-review  ◀───┤  research_review_loop│ via claude -p │
-│   └─ ... (8 more)            └─ state_machine (pure)                │
+│   └─ ... (11 more)           └─ state_machine (pure)                │
 │                                                                     │
-│   Helpers                   Records                                 │
-│   ├─ metrics/verdict.py     └─ JSONL project memory                 │
-│   ├─ scripts/sympy_verify      (evaluation/finding/review/          │
-│   └─ scripts/audit_stats         frontier/...)                      │
+│   Helpers                    Records                                │
+│   ├─ metrics/verdict.py      └─ JSONL project memory                │
+│   ├─ scripts/sympy_verify       (evaluation/finding/review/         │
+│   └─ scripts/audit_stats          frontier/...)                     │
 └──────────────────────────┬──────────────────────────────────────────┘
                            │
                            ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │  alpha_review (editable dependency at ../alpha_review)              │
-│    apis.search_all, s2_*, openalex_search, unpaywall_pdf_url, ...  │
+│    apis.search_all, s2_*, openalex_search, unpaywall_pdf_url, ...   │
 │    scholar.scholar_search_papers                                    │
 │    models.ReviewState (SQLite-backed papers/themes store)           │
 │    sdk.run_plan/scope/search/read/write (the survey pipeline)       │
@@ -263,10 +58,291 @@ refactor once those callers migrate to `records.jsonl` + `alpha_review.ReviewSta
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
+**Zero new tools.** Everything a researcher needs is reachable through
+Claude Code's built-ins (`Bash`, `Read`, `Write`, `Edit`, `Grep`,
+`Glob`) plus the `alpha_review` Python module. Skills encode the
+research doctrine; pipelines run deterministic orchestration; JSONL
+files hold per-project state. See `docs/PROJECT.md` §Skills-First
+Architecture for the full rationale.
+
+**Project-as-directory.** A research project is literally a directory
+on disk under `output/<name>/` containing human-owned markdown
+(project.md, hamming.md, formalization.md, benchmarks.md,
+one_sentence.md, log.md), CLI-managed `state.json`, agent-written
+`source.md`, and an append-only log of JSONL record streams
+(evaluations.jsonl, significance_screens.jsonl, formalization_checks.jsonl,
+diagnoses.jsonl, challenges.jsonl, reviews.jsonl, frontier.jsonl, ...).
+
+---
+
+## Prerequisites
+
+- **Conda** (Miniconda or Anaconda)
+- **Python 3.10+**
+- **Node.js 20+** (only if you want the legacy Next.js dashboard —
+  deferred per Phase 0 cut)
+- **Claude CLI** (`claude`) installed and authenticated — skills are
+  invoked via `claude -p`
+- The sibling **`alpha_review`** project checked out at
+  `../alpha_review`, installed as an editable dependency
+- An **`ANTHROPIC_API_KEY`** exported in the shell (optional for
+  search/fetch-only runs; required for LLM-based evaluation and review)
+
+---
+
+## Setup
+
+### 1. Create and activate the conda environment
+
+```bash
+conda create -n alpha_research python=3.11 -y
+conda activate alpha_research
+```
+
+### 2. Install `alpha_review` and `alpha_research`
+
+```bash
+# From the repo parent directory (so ../alpha_review resolves)
+pip install -e ../alpha_review
+pip install -e ".[dev]"
+```
+
+### 3. Install the git pre-commit hook
+
+```bash
+./scripts/install_hooks.sh
+```
+
+This enforces:
+- `docs/` contains exactly 5 files (`PROJECT.md`, `PLAN.md`,
+  `SURVEY.md`, `DISCUSSION.md`, `LOGS.md`)
+- `docs/LOGS.md` is append-only (new content must be a byte-exact
+  extension of the committed version)
+
+### 4. Set your API key
+
+```bash
+export ANTHROPIC_API_KEY="sk-ant-..."
+```
+
+Without a key, the system still runs literature search, paper
+fetching, and report generation — it just skips LLM-based evaluation
+and review.
+
+---
+
+## Quick Start
+
+### 1. Run a literature survey
+
+Wraps the `alpha-review` CLI (PLAN → SCOPE → SEARCH/READ loop →
+WRITE) and layers the Appendix B rubric via the `paper-evaluate`
+skill over every included paper.
+
+```bash
+alpha-research survey "tactile manipulation for deformable objects" -o output/tactile
+```
+
+Outputs:
+- `output/tactile/review.db` — `alpha_review`'s papers+themes store
+- `output/tactile/review_grounded.tex` — LaTeX survey
+- `output/tactile/review_grounded.pdf` — compiled PDF (if pdflatex available)
+- `output/tactile/evaluations.jsonl` — our rubric scores with evidence
+- `output/tactile/alpha_research_report.md` — synthesis with taxonomy,
+  frontier, and identified gaps
+
+### 2. Evaluate a single paper (Appendix B rubric)
+
+```bash
+alpha-research evaluate arxiv:2501.12345 -o output/single
+```
+
+### 3. Screen a candidate problem for significance
+
+Applies the four tests from `research_guideline.md` §2.2: Hamming,
+Consequence, Durability, Compounding.
+
+```bash
+alpha-research significance "contact-rich manipulation under uncertainty"
+```
+
+### 4. Adversarial review at venue standard
+
+Six attack vectors from `review_guideline.md` Part III, steel-man
+first, fatal/serious/minor classification, mechanical verdict.
+
+```bash
+alpha-research review path/to/paper.md --venue RSS -o output/reviews
+```
+
+### 5. Run the full adversarial convergence loop on a project
+
+```bash
+alpha-research loop output/tactile --venue RSS --max-iterations 5
+```
+
+Drives review → human revision → re-review with graduated adversarial
+pressure (structural scan → full review → focused re-review) and a
+meta-reviewer that catches vague or toothless critiques.
+
+### 6. Summarize a project's JSONL records
+
+```bash
+alpha-research status output/tactile
+```
+
+---
+
+## CLI Reference
+
+```
+alpha-research survey       <query> -o <dir>                    # literature_survey pipeline
+alpha-research evaluate     <paper_id> -o <dir>                 # paper-evaluate skill
+alpha-research review       <artifact.md> --venue RSS -o <dir>  # adversarial-review skill
+alpha-research significance <problem>                           # significance-screen skill
+alpha-research loop         <project_dir> --venue RSS           # research_review_loop pipeline
+alpha-research status       [<project_dir>]                     # summarize JSONL records
+
+alpha-research project init|stage|advance|backward|log|status   # project lifecycle
+```
+
+**Venues** (strictest to most lenient): `IJRR`, `T-RO`, `RSS`,
+`CoRL`, `RA-L`, `ICRA`, `IROS`. Each triggers venue-calibrated
+thresholds on trial counts, real-robot expectations, formalization
+depth, and baseline strength. See `docs/SURVEY.md` Round 1 Venue
+Calibration for the full per-venue rubric.
+
+---
+
+## Project Structure
+
+```
+alpha_research/
+├── skills/                        # Claude Code Agent Skills (runtime artifacts — LEAVE IN PLACE)
+│   ├── paper-evaluate/            #   Canonical rubric scoring (Sonnet)
+│   ├── significance-screen/       #   Hamming/Consequence/Durability/Compounding (Opus)
+│   ├── formalization-check/       #   Math detection + sympy verify (Opus)
+│   ├── diagnose-system/           #   Failure taxonomy + formal mapping (Sonnet)
+│   ├── challenge-articulate/      #   Structural barrier identification (Opus)
+│   ├── experiment-audit/          #   Stats + baselines + overclaiming (Sonnet)
+│   ├── adversarial-review/        #   Full 6-attack-vector review (Opus, largest)
+│   ├── concurrent-work-check/     #   Scoop detection (Sonnet)
+│   ├── gap-analysis/              #   Semantic clustering (Opus)
+│   ├── classify-capability/       #   Frontier tier assignment (Sonnet)
+│   ├── identify-method-gaps/      #   Method-class coverage gaps (Sonnet)
+│   ├── benchmark-survey/          #   Benchmark selection survey (planned)
+│   ├── experiment-design/         #   Reproduction / diagnostic / approach (planned)
+│   ├── experiment-analyze/        #   Results audit with reproducibility gate (planned)
+│   └── project-understanding/     #   Code-tree understanding → source.md (planned)
+│
+├── config/                        # YAML configs (constitution, review)
+├── docs/                          # Canonical 5-file documentation set
+│   ├── PROJECT.md                 #   Design reference (doctrine + architecture)
+│   ├── PLAN.md                    #   Active plan + phased roadmap
+│   ├── SURVEY.md                  #   Venue calibration + methodology research
+│   ├── DISCUSSION.md              #   Design decisions + migration history
+│   └── LOGS.md                    #   Append-only development log
+│
+├── scripts/                       # Helper CLIs
+│   ├── sympy_verify.py            #   Mathematical property verification
+│   ├── audit_stats.py             #   Statistical audit
+│   ├── check_docs.py              #   Docs-layout enforcer
+│   └── install_hooks.sh           #   git pre-commit hook installer
+│
+├── src/alpha_research/
+│   ├── pipelines/                 # Deterministic Python orchestration
+│   │   ├── state_machine.py       #   Pure functions: g1-g5, t2-t15
+│   │   ├── literature_survey.py   #   alpha-review CLI + paper-evaluate loop
+│   │   ├── method_survey.py       #   Search + graph + evaluate loop
+│   │   ├── frontier_mapping.py    #   classify-capability loop + diff
+│   │   └── research_review_loop.py#   Adversarial convergence loop
+│   ├── records/jsonl.py           # append/read/count JSONL records
+│   ├── metrics/
+│   │   ├── verdict.py             #   Pure compute_verdict per review_plan §1.9
+│   │   ├── review_quality.py      #   Actionability, grounding, anti-patterns
+│   │   ├── convergence.py         #   Convergence + stagnation detection
+│   │   └── finding_tracker.py     #   Cross-iteration finding tracking
+│   ├── reports/templates.py       # DIGEST + DEEP rubric templates (Jinja2)
+│   ├── models/                    # Pydantic data models
+│   │   ├── research.py            #   Evaluation, TaskChain, RubricScore, ...
+│   │   ├── review.py              #   Finding, Review, Verdict, ...
+│   │   ├── blackboard.py          #   Blackboard, ResearchArtifact, Venue
+│   │   ├── project.py             #   ProjectManifest, ProjectState (legacy)
+│   │   └── snapshot.py            #   SourceSnapshot, ProjectSnapshot (legacy)
+│   ├── tools/paper_fetch.py       # PDF download + pymupdf extraction
+│   ├── projects/                  # Legacy project lifecycle layer (being collapsed — see PLAN)
+│   ├── templates/project/         # Project scaffold markdown templates
+│   ├── api/                       # Legacy FastAPI backend (deferred — see PLAN)
+│   ├── config.py                  # YAML config loaders
+│   ├── llm.py                     # Anthropic API client wrapper
+│   ├── project.py                 # New per-project state + append_revision_log
+│   ├── skills.py                  # Skill invoker and stage-check helper
+│   └── main.py                    # Typer CLI
+│
+├── tests/                         # 300+ unit + integration (integration opt-in)
+├── data/                          # Runtime: search cache, global paper store
+├── output/                        # Runtime: one directory per project
+└── pyproject.toml
+```
+
+**Note.** Earlier versions of this tree had a `frontend/` directory
+(Next.js dashboard), an `api/` layer (FastAPI + AG-UI), a rich
+`agents/` package, and a `knowledge/` SQLite store. Phase 0 of the
+integrated state-machine plan cuts those — see `docs/DISCUSSION.md`
+R0-R9 refactor journey and the project lifecycle debate for why.
+
+---
+
+## Per-Project Artifacts
+
+A project directory under `output/<name>/` contains:
+
+**Human-owned markdown** (the researcher writes these):
+- `project.md` — question, task, why-now, scope
+- `hamming.md` — running list of 10-20 important unsolved problems
+- `formalization.md` — the problem as math (objective, variables,
+  constraints, information structure)
+- `benchmarks.md` — chosen benchmarks with rationale, success
+  criterion, published baselines, saturation assessment
+- `one_sentence.md` — evolving contribution statement
+- `log.md` — weekly Tried/Expected/Observed/Concluded/Next entries
+
+**Agent-written markdown**:
+- `source.md` — what the `project-understanding` skill learned from
+  reading `code_dir`
+
+**CLI-owned state**:
+- `state.json` — current stage, history, forward-guard status, open
+  backward triggers, `code_dir`, target venue
+- `provenance.jsonl` — append-only lineage of every action (CLI,
+  skill, pipeline)
+
+**Agent-written JSONL record streams**:
+- `evaluations.jsonl` — per-paper Appendix B rubric scores
+- `significance_screens.jsonl` — four significance-test outputs
+- `formalization_checks.jsonl` — formalization-level + structure findings
+- `diagnoses.jsonl` — failure mode → formal term mappings
+- `challenges.jsonl` — challenge articulations with implied method class
+- `method_surveys.jsonl` — method class coverage surveys
+- `concurrent_work.jsonl` — scoop checks
+- `experiment_designs.jsonl` — proposed experiment configs
+- `experiment_analyses.jsonl` — experiment audits + reproducibility verdicts
+- `findings.jsonl` — structured findings from analyses, diagnoses, reviews
+- `reviews.jsonl` — adversarial review records (verdict + findings)
+- `frontier.jsonl` — frontier_mapping pipeline snapshots (reliable/sometimes/can't-yet)
+- `gap_reports.jsonl` — gap-analysis skill outputs
+
+The researcher's **actual method code lives outside** the project
+directory (at `state.code_dir` in `state.json`). Experiments live
+under `<code_dir>/experiments/<exp_id>/` next to the code they
+produced, following the convention in `docs/PROJECT.md` §Experiment
+Interface.
+
+---
 
 ## Configuration
 
-### `config/constitution.yaml` — Research agent domain focus
+### `config/constitution.yaml` — research agent domain focus
 
 ```yaml
 name: "Robotics Research"
@@ -277,7 +353,7 @@ focus_areas:
 max_papers_per_cycle: 50
 ```
 
-### `config/review_config.yaml` — Review loop behavior
+### `config/review_config.yaml` — review loop behavior
 
 ```yaml
 target_venue: "RSS"
@@ -293,23 +369,85 @@ review_quality_thresholds:
   min_falsifiability: 0.70
 ```
 
+---
 
 ## Testing
 
 ```bash
-# Run all tests (no network access or API keys needed)
+# Fast suite (no network, no LLM calls)
 python -m pytest tests/ -q
 
-# Run with coverage
+# With coverage
 python -m pytest tests/ --cov=alpha_research --cov-report=term-missing
+
+# Include the opt-in integration tests that hit real CLIs / APIs
+python -m pytest -m "" tests/
 ```
 
+Tests emit per-module markdown reports to `tests/reports/` via the
+`ReportWriter` fixture — a reviewer can understand what each module
+guarantees by reading its report without running pytest. See
+`docs/LOGS.md` 2026-04-11 entry Part 1 for the pattern.
 
-## Design Documents
+---
 
-- `work_plan.md` — Research agent architecture, state machines, build order
-- `research_guideline.md` — Evaluation rubric, significance tests, formalization standards
-- `review_guideline.md` — Attack vectors, review protocol, anti-patterns
-- `review_plan.md` — Executable metrics, iteration protocol
-- `FRONTEND.md` — Frontend architecture, three key views, tech stack decisions
-- `project_lifecycle_revision_plan.md` — Project-oriented lifecycle layer design
+## Troubleshooting
+
+### `alpha_review` import fails
+
+Ensure it's installed as an editable dependency from the sibling
+directory:
+
+```bash
+pip install -e ../alpha_review
+python -c "import alpha_review; print(alpha_review.__file__)"
+```
+
+### `claude` CLI not found
+
+Skills are invoked via `claude -p`. Install Claude Code and log in,
+or disable LLM features by unsetting `ANTHROPIC_API_KEY` and avoiding
+the `evaluate`/`review`/`loop` verbs.
+
+### Python 3.8 + `list[str]` annotations
+
+If you're stuck on Python 3.8 (not recommended; minimum is 3.10):
+`pip install eval_type_backport`.
+
+### `pytest` imports missing
+
+```bash
+pip install -e ".[dev]"
+```
+
+### Docs layout pre-commit check fails
+
+If you see `docs/ layout check FAILED` when committing:
+- `docs/ missing required files` → restore the missing file or
+  re-run the docs migration
+- `docs/ contains files outside the canonical set` → move the
+  file out of `docs/` (only the 5 canonical files are allowed)
+- `docs/LOGS.md is append-only but its new content does not start
+  with the HEAD content` → you edited the old part of `LOGS.md`
+  instead of appending. Append a correction entry at the bottom
+  instead.
+
+To bypass in an emergency: `git commit --no-verify` (but fix the
+issue in a follow-up).
+
+---
+
+## Next Steps
+
+- **Read the design**: `docs/PROJECT.md` — the two-layer state
+  machine, research doctrine, review doctrine, problem formulation
+  methodology, skills-first architecture, experiment interface
+- **Read the plan**: `docs/PLAN.md` — active implementation plan
+  (Phases 0-10), TODO list, open questions, risks
+- **Read the surveys**: `docs/SURVEY.md` — venue-specific calibration
+  (RSS, CoRL, NeurIPS, ICML, IJRR, T-RO) and the open-source
+  landscape review that informed the deferred frontend plan
+- **Read the decisions**: `docs/DISCUSSION.md` — the R0-R9 refactor
+  journey, the project lifecycle debate, the three-canonical-docs
+  invariant
+- **Read the history**: `docs/LOGS.md` — append-only development log
